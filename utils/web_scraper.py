@@ -9,7 +9,6 @@ import re
 from urllib.parse import urljoin, urlparse
 import time
 import xml.etree.ElementTree as ET
-from urllib.parse import urljoin, urlparse
 
 def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[dict]:
     """
@@ -787,9 +786,9 @@ def extract_ingredient_count(soup: BeautifulSoup) -> str:
             return str(len(matches))
     
     # Method 3: Look for ingredient headings and count items
-    heading_patterns = [
+    heading_patterns = [ 
         r'ingredients[:\n]',
-        r'what you\\'ll need[:\n]',
+        r"what you'll need[:\n]",
         r'for the recipe[:\n]',
         r'you will need[:\n]'
     ]
