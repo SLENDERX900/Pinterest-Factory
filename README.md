@@ -157,7 +157,7 @@ OLLAMA_TIMEOUT=180
 Edit `components/intake.py` to add new recipes to the `NOBSCOOKING_RECIPES` list:
 
 ```python
-{"name": "Recipe Name", "url": "https://nobscooking.com/recipes/slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
+{"name": "Recipe Name", "url": "https://example.com/recipe-slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
 ```
 
 ### Customizing Pin Templates
