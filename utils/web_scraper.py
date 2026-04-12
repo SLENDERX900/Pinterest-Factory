@@ -668,63 +668,152 @@ def is_valid_recipe_name(name: str) -> bool:
 
 def extract_cooking_time(soup: BeautifulSoup) -> str:
     """
-    Extract cooking time with enhanced patterns.
+    Extract cooking time - more accurate version that avoids false positives.
     """
-    # Look for time-related information
-    time_patterns = [
-        r'(\d+)\s*mins?',
-        r'(\d+)\s*minutes?',
-        r'(\d+)\s*hrs?',
-        r'(\d+)\s*hours?',
-        r'cook\s*time\s*[:](\d+)\s*(?:mins?|minutes?)',
-        r'prep\s*time\s*[:](\d+)\s*(?:mins?|minutes?)',
-        r'ready\s*in\s*(\d+)\s*(?:hrs?|hours?)',
-        r'total\s*time\s*[:](\d+)\s*(?:mins?|minutes?)',
-        r'duration\s*=\s*["\']?(\d+)\s*(?:hrs?|hours?|mins?|minutes?)',
-        r'\b(?:cooks?|takes?)\s*(\d+)\s*(?:hr|hrs|hour|mins|minutes?)\b',
-        r'\b(?:preps?|prepares?)\s*(\d+)\s*(?:hr|hrs|hour|mins|minutes?)\b'
-    ]
-    
-    # Look for time selectors
+    # Method 1: Try structured data (most reliable)
     time_selectors = [
-        '[itemprop="cookTime"]',
-        '[itemprop="totalTime"]',
-        '.cook-time',
-        '.prep-time',
-        '.recipe-time',
-        '.time',
-        'meta[property="article:prep_time"]',
-        'meta[property="article:cook_time"]',
-        '.time-required',
-        '.ready-time',
-        '.duration',
-        '.recipe-details-time',
-        '.cooking-time',
-        '.prep-time-required',
-        '.time-to-cook'
+        ('[itemprop="totalTime"]', 'total'),
+        ('[itemprop="cookTime"]', 'cook'),
+        ('[itemprop="prepTime"]', 'prep'),
+        ('.recipe-time', 'total'),
+        ('.cook-time', 'cook'),
+        ('.prep-time', 'prep'),
+        ('.recipe-details-time', 'total'),
+        ('.duration', 'total')
     ]
     
-    for selector in time_selectors:
+    for selector, time_type in time_selectors:
         element = soup.select_one(selector)
         if element:
             time_text = element.get_text().strip()
-            # Parse time from structured data
-            time = parse_time_from_text(time_text)
-            if time:
+            time = parse_iso_duration(time_text)
+            if time and time != "1 mins":  # Avoid suspicious 1-minute times
+                print(f"Found {time_type} time: {time} using selector: {selector}")
                 return time
     
-    # Fallback: look for time patterns in page text
-    page_text = soup.get_text().lower()
+    # Method 2: Look for time in meta tags
+    meta_selectors = [
+        'meta[itemprop="cookTime"]',
+        'meta[itemprop="totalTime"]',
+        'meta[itemprop="prepTime"]'
+    ]
     
-    # Extract from various time formats
-    for pattern in time_patterns:
-        match = re.search(pattern, page_text)
+    for meta in soup.select(','.join(meta_selectors)):
+        content = meta.get('content', '')
+        time = parse_iso_duration(content)
+        if time and time != "1 mins":
+            return time
+    
+    # Method 3: Extract from JSON-LD schema (most reliable)
+    scripts = soup.find_all('script', type='application/ld+json')
+    for script in scripts:
+        try:
+            import json
+            data = json.loads(script.string)
+            if isinstance(data, list):
+                schemas = data
+            else:
+                schemas = [data]
+            
+            for schema in schemas:
+                if schema.get('@type') == 'Recipe' or (isinstance(schema.get('@type'), list) and 'Recipe' in schema.get('@type', [])):
+                    # Try totalTime first, then cookTime, then prepTime
+                    for time_field in ['totalTime', 'cookTime', 'prepTime']:
+                        time_value = schema.get(time_field)
+                        if time_value:
+                            time = parse_iso_duration(time_value)
+                            if time and time != "1 mins":
+                                print(f"Found {time_field}: {time} from JSON-LD schema")
+                                return time
+        except:
+            pass
+    
+    # Method 4: Search for time in page text with stricter patterns
+    page_text = soup.get_text()
+    
+    # Look for recipe time patterns (avoiding false positives like "1" being extracted from other contexts)
+    strict_patterns = [
+        # Look for "X minutes" or "X hours" near recipe-related words
+        r'(?:prep|cook|total|ready in)\s*(?:time)?[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'(?:prep|cook|total)\s*(?:time)?[:\s]*(?:about|around)?\s*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'(?:time required|time needed)[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'(?:takes|needs)\s*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)\s*(?:to\s*cook|to\s*prep|total)',
+    ]
+    
+    for pattern in strict_patterns:
+        match = re.search(pattern, page_text, re.IGNORECASE)
         if match:
-            number = match.group(1)
-            unit = 'hr' if 'hr' in pattern else 'mins'
-            return f"{number} {unit}"
+            number = int(match.group(1))
+            # Sanity check - recipes shouldn't take less than 5 minutes or more than 24 hours
+            if 5 <= number <= 1440:
+                # Determine unit
+                match_text = match.group(0).lower()
+                if 'hr' in match_text or 'hour' in match_text:
+                    if number == 1:
+                        return "1 hr"
+                    else:
+                        return f"{number} hrs"
+                else:
+                    if number == 1:
+                        return "1 min"
+                    else:
+                        return f"{number} mins"
     
-    return "30 mins"  # Default fallback
+    # Return empty string if we can't determine accurately
+    print("Could not accurately determine cooking time")
+    return ""
+
+def parse_iso_duration(duration_text: str) -> str:
+    """
+    Parse ISO 8601 duration format (e.g., PT30M, PT1H30M) to human-readable format.
+    Also handles plain text like "30 minutes", "1 hour", etc.
+    """
+    if not duration_text:
+        return None
+    
+    duration_text = duration_text.strip().upper()
+    
+    # Check for ISO 8601 format (PT30M, PT1H30M, etc.)
+    iso_match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:\d+S)?', duration_text)
+    if iso_match:
+        hours = int(iso_match.group(1)) if iso_match.group(1) else 0
+        minutes = int(iso_match.group(2)) if iso_match.group(2) else 0
+        
+        if hours > 0 and minutes > 0:
+            return f"{hours} hr {minutes} mins"
+        elif hours > 0:
+            if hours == 1:
+                return "1 hr"
+            else:
+                return f"{hours} hrs"
+        elif minutes > 0:
+            if minutes == 1:
+                return "1 min"
+            else:
+                return f"{minutes} mins"
+    
+    # Parse plain text format
+    # Look for patterns like "30 minutes", "1 hour", "2 hours 30 minutes"
+    hour_match = re.search(r'(\d+)\s*(?:hr|hrs|hour|hours)', duration_text, re.IGNORECASE)
+    minute_match = re.search(r'(\d+)\s*(?:min|mins|minute|minutes)', duration_text, re.IGNORECASE)
+    
+    hours = int(hour_match.group(1)) if hour_match else 0
+    minutes = int(minute_match.group(1)) if minute_match else 0
+    
+    if hours > 0 and minutes > 0:
+        return f"{hours} hr {minutes} mins"
+    elif hours > 0:
+        if hours == 1:
+            return "1 hr"
+        else:
+            return f"{hours} hrs"
+    elif minutes > 0:
+        if minutes == 1:
+            return "1 min"
+        else:
+            return f"{minutes} mins"
+    
+    return None
 
 def parse_time_from_text(time_text: str) -> str:
     """
@@ -749,9 +838,9 @@ def parse_time_from_text(time_text: str) -> str:
 
 def extract_ingredient_count(soup: BeautifulSoup) -> str:
     """
-    Extract ingredient count with enhanced patterns.
+    Extract ingredient count from recipe page - more accurate version.
     """
-    # Method 1: Look for structured ingredient lists
+    # Method 1: Look for structured ingredient lists - most reliable
     ingredient_selectors = [
         '.ingredients li',
         '.ingredient-list li',
@@ -762,115 +851,81 @@ def extract_ingredient_count(soup: BeautifulSoup) -> str:
         '.wp-block-ingredients-list li',
         '.tasty-recipes-ingredients li',
         '.recipe-ingredients ol li',
-        '.ingredient-group'
+        '.ingredient-group li',
+        '.wprm-recipe-ingredient',
+        '.tasty-recipes-ingredients-body li'
     ]
     
     for selector in ingredient_selectors:
         ingredients = soup.select(selector)
-        if len(ingredients) > 0:
-            print(f"Found {len(ingredients)} ingredients using selector: {selector}")
-            return str(len(ingredients))
+        if len(ingredients) > 0 and len(ingredients) < 50:  # Sanity check - recipes shouldn't have 50+ ingredients
+            # Verify these are actually ingredients by checking content
+            valid_ingredients = []
+            for ing in ingredients:
+                text = ing.get_text().strip()
+                # Ingredient should have some substance and likely contain a measurement or ingredient word
+                if len(text) > 3 and len(text) < 200:
+                    # Check for measurement indicators
+                    has_measurement = any(unit in text.lower() for unit in ['cup', 'tbsp', 'tsp', 'oz', 'lb', 'g', 'kg', 'ml', 'tablespoon', 'teaspoon', 'pound', 'ounce', 'gram'])
+                    # Or check for common ingredient words
+                    has_ingredient = any(word in text.lower() for word in ['salt', 'pepper', 'oil', 'butter', 'garlic', 'onion', 'flour', 'sugar', 'egg', 'milk', 'water', 'chicken', 'beef', 'cheese', 'pasta', 'rice', 'vegetable'])
+                    if has_measurement or has_ingredient:
+                        valid_ingredients.append(text)
+            
+            if len(valid_ingredients) > 0:
+                print(f"Found {len(valid_ingredients)} valid ingredients using selector: {selector}")
+                return str(len(valid_ingredients))
     
-    # Method 2: Look for numbered ingredient lists
-    numbered_patterns = [
-        r'(\d+)\.\s*ingredients?',
-        r'(\d+)\.\s*ingredient[s]?',
-        r'ingredients?\s*(\d+)'
-    ]
-    
+    # Method 2: Look for ingredient section and count items
     page_text = soup.get_text()
-    for pattern in numbered_patterns:
-        matches = re.findall(pattern, page_text, re.IGNORECASE)
-        if matches:
-            print(f"Found {len(matches)} numbered ingredients using pattern: {pattern}")
-            return str(len(matches))
     
-    # Method 3: Look for ingredient headings and count items
-    heading_patterns = [ 
-        r'ingredients[:\n]',
-        r"what you'll need[:\n]",
-        r'for the recipe[:\n]',
-        r'you will need[:\n]'
+    # Find the ingredients section
+    ingredient_section_patterns = [
+        r'(?i)ingredients[\s:]*\n((?:\s*[-•\d\.]\s*[^\n]+\n?)+)',
+        r'(?i)what you[\'\']?ll need[\s:]*\n((?:\s*[-•\d\.]\s*[^\n]+\n?)+)',
+        r'(?i)you will need[\s:]*\n((?:\s*[-•\d\.]\s*[^\n]+\n?)+)'
     ]
     
-    for pattern in heading_patterns:
-        if re.search(pattern, page_text, re.IGNORECASE):
-            # Count lines after the heading
-            heading_match = re.search(pattern, page_text, re.IGNORECASE)
-            if heading_match:
-                remaining_text = page_text[heading_match.end():]
-                # Count individual ingredients (one per line assumption)
-                ingredient_lines = [line.strip() for line in remaining_text.split('\n') if line.strip() and len(line.strip()) > 2]
-                if ingredient_lines:
-                    print(f"Found {len(ingredient_lines)} ingredients from heading pattern: {pattern}")
-                    return str(len(ingredient_lines))
+    for pattern in ingredient_section_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            section = match.group(1)
+            # Count lines that look like ingredients (start with bullet, number, or have measurements)
+            lines = [line.strip() for line in section.split('\n') if line.strip()]
+            ingredient_lines = []
+            for line in lines:
+                # Check if line looks like an ingredient
+                if re.match(r'^[\s•\-\*\d\.]+', line) or any(unit in line.lower() for unit in ['cup', 'tbsp', 'tsp', 'oz', 'lb', 'g ', 'ml', 'tablespoon', 'teaspoon', 'pound']):
+                    if len(line) > 3 and len(line) < 200:
+                        ingredient_lines.append(line)
+            
+            if len(ingredient_lines) > 0:
+                print(f"Found {len(ingredient_lines)} ingredients from section pattern")
+                return str(len(ingredient_lines))
     
-    # Method 4: Look for bullet points and dashes
-    bullet_patterns = [
-        r'•\s*[\w\s]+\s*[-–—]',
-        r'[-*]\s*[\w\s]+\s*[-–—]',
-        r'\\*\s*[\w\s]+\s*[-–—]'
-    ]
+    # Method 3: Extract from JSON-LD schema
+    scripts = soup.find_all('script', type='application/ld+json')
+    for script in scripts:
+        try:
+            import json
+            data = json.loads(script.string)
+            if isinstance(data, list):
+                schemas = data
+            else:
+                schemas = [data]
+            
+            for schema in schemas:
+                if schema.get('@type') == 'Recipe' or (isinstance(schema.get('@type'), list) and 'Recipe' in schema.get('@type', [])):
+                    recipe_ingredients = schema.get('recipeIngredient', [])
+                    if recipe_ingredients and len(recipe_ingredients) > 0:
+                        print(f"Found {len(recipe_ingredients)} ingredients from JSON-LD schema")
+                        return str(len(recipe_ingredients))
+        except:
+            pass
     
-    for pattern in bullet_patterns:
-        matches = re.findall(pattern, page_text)
-        if matches:
-            print(f"Found {len(matches)} bullet-point ingredients using pattern: {pattern}")
-            return str(len(matches))
-    
-    # Method 5: Look for ingredient mentions in text
-    page_text = soup.get_text().lower()
-    ingredient_indicators = [
-        'ingredients:', 'ingredient list', 'you will need', 'gather together',
-        'mix together', 'combine', 'add the', 'place in bowl',
-        'stir in', 'fold in', 'whisk', 'blend',
-        'toss', 'season with', 'garnish',
-        'cup', 'tablespoon', 'teaspoon', 'clove',
-        'slice', 'dice', 'chop', 'grate', 'mince'
-    ]
-    
-    count = 0
-    for indicator in ingredient_indicators:
-        count += page_text.count(indicator)
-    
-    # Method 6: Look for common ingredient separators
-    separator_patterns = [
-        r'[,;\\/]',
-        r'\s+and\s+',
-        r'\s+or\s+',
-        r'\s+with\s+'
-    ]
-    
-    for pattern in separator_patterns:
-        matches = re.split(pattern, page_text)
-        if len(matches) > len(matches[0]):  # More separators than just spaces
-            print(f"Found {len(matches)} ingredients using separator pattern: {pattern}")
-            return str(len(matches))
-    
-    # Method 7: Fallback to text analysis
-    # Count common cooking verbs and ingredient words
-    cooking_verbs = ['add', 'mix', 'stir', 'chop', 'dice', 'slice', 'grate', 'whisk', 'blend', 'fold', 'toss', 'season', 'garnish']
-    ingredient_words = ['cup', 'tablespoon', 'teaspoon', 'clove', 'onion', 'garlic', 'butter', 'oil', 'salt', 'pepper', 'sugar', 'flour', 'egg', 'milk', 'cheese', 'cream', 'water', 'rice', 'pasta', 'chicken', 'beef', 'pork', 'fish', 'tomato', 'potato', 'carrot', 'celery', 'lettuce', 'herb']
-    
-    text_lower = page_text.lower()
-    ingredient_count = 0
-    
-    # Count cooking verbs followed by ingredient words
-    for verb in cooking_verbs:
-        for ingredient in ingredient_words:
-            if f"{verb} {ingredient}" in text_lower:
-                ingredient_count += 1
-    
-    # Count standalone ingredient words
-    for ingredient in ingredient_words:
-        if f" {ingredient} " in text_lower or f"{ingredient}," in text_lower:
-            ingredient_count += 1
-    
-    if ingredient_count > 0:
-        return str(ingredient_count)
-    
-    print(f"Estimated ingredient count: {ingredient_count} (method: text analysis)")
-    return "8"  # Default fallback
+    # Default - return empty to indicate extraction failed rather than guessing
+    print("Could not accurately determine ingredient count")
+    return ""
 
 def determine_recipe_benefit(soup: BeautifulSoup, recipe_name: str) -> str:
     """
