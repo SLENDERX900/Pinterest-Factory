@@ -53,31 +53,80 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
 
 def find_recipe_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     """
-    Find recipe links on the main page.
+    Find individual recipe links, filtering out categories and generic pages.
     """
     links = []
     
-    # Common patterns for recipe links
+    # Generic category terms to exclude
+    EXCLUDED_TERMS = [
+        'all recipes', 'snacks recipes', 'mains recipes', 'desserts recipes',
+        'soups recipes', 'breakfast recipes', 'sides recipes', 'appetizers',
+        'main course', 'side dish', 'dessert', 'breakfast', 'lunch', 'dinner',
+        'category', 'categories', 'collection', 'collections', 'index',
+        'archive', 'archives', 'tag', 'tags', 'type', 'types'
+    ]
+    
+    # More specific patterns for individual recipe URLs
     recipe_patterns = [
-        r'/recipe[s]?/',
-        r'/cook/',
-        r'/food/',
-        r'/dishes/',
-        r'/meals/'
+        r'/recipe[s]?/[\w-]+$',  # /recipes/dish-name
+        r'/[\w-]+-recipe$',     # /dish-name-recipe
+        r'/cook/[\w-]+$',       # /cook/dish-name
+        r'/food/[\w-]+$',       # /food/dish-name
+        r'/dishes/[\w-]+$',     # /dishes/dish-name
+        r'/meals/[\w-]+$',       # /meals/dish-name
     ]
     
     for a_tag in soup.find_all('a', href=True):
         href = a_tag['href']
+        link_text = a_tag.get_text().strip().lower()
         full_url = urljoin(base_url, href)
         
-        # Check if it looks like a recipe link
+        # Skip if link text contains excluded terms
+        if any(excluded_term in link_text for excluded_term in EXCLUDED_TERMS):
+            continue
+        
+        # Skip if link text is too short or too generic
+        if len(link_text) < 3 or len(link_text.split()) > 8:
+            continue
+        
+        # Check if it matches recipe URL patterns
         if any(re.search(pattern, href, re.IGNORECASE) for pattern in recipe_patterns):
             links.append(full_url)
-        elif 'recipe' in a_tag.get_text().lower():
+        # Fallback: check if link text looks like a dish name
+        elif looks_like_dish_name(link_text):
             links.append(full_url)
     
     # Remove duplicates
     return list(set(links))
+
+def looks_like_dish_name(text: str) -> bool:
+    """
+    Determine if text looks like an actual dish name rather than a category.
+    """
+    # Common dish name indicators
+    dish_indicators = [
+        'chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 'tofu',
+        'pasta', 'rice', 'noodles', 'soup', 'salad', 'sandwich', 'burger',
+        'pizza', 'taco', 'curry', 'stir', 'roast', 'baked', 'grilled',
+        'cake', 'pie', 'cookie', 'bread', 'muffin', 'pancake', 'waffle'
+    ]
+    
+    # Category indicators to exclude
+    category_indicators = [
+        'recipes', 'recipe', 'dishes', 'dish', 'meals', 'meal', 'food',
+        'ideas', 'collection', 'best', 'easy', 'quick', 'simple',
+        'homemade', 'traditional', 'classic', 'favorite'
+    ]
+    
+    # Must contain at least one dish indicator
+    if not any(indicator in text for indicator in dish_indicators):
+        return False
+    
+    # Must not contain category indicators
+    if any(indicator in text for indicator in category_indicators):
+        return False
+    
+    return True
 
 def extract_recipe_info(url: str, headers: dict) -> dict:
     """
@@ -115,7 +164,7 @@ def extract_recipe_info(url: str, headers: dict) -> dict:
 
 def extract_recipe_name(soup: BeautifulSoup) -> str:
     """
-    Extract recipe name from various HTML elements.
+    Extract recipe name, filtering out generic titles.
     """
     # Try different selectors for recipe titles
     selectors = [
@@ -123,18 +172,64 @@ def extract_recipe_name(soup: BeautifulSoup) -> str:
         '.recipe-title',
         '.entry-title',
         '.post-title',
-        'h2',
-        '[itemprop="name"]'
+        '[itemprop="name"]',
+        '.recipe-name',
+        '.title'
     ]
     
     for selector in selectors:
         element = soup.select_one(selector)
         if element:
             name = element.get_text().strip()
-            if len(name) > 3:  # Ensure it's not empty or too short
+            # Filter out generic names
+            if is_valid_recipe_name(name):
                 return name
     
+    # Fallback: try to extract from page title
+    title_tag = soup.find('title')
+    if title_tag:
+        title = title_tag.get_text().strip()
+        # Remove common suffixes
+        title = re.sub(r'\s*[-|]\s*.+$', '', title)  # Remove "| Site Name" 
+        title = re.sub(r'\s*Recipe$', '', title, flags=re.IGNORECASE)
+        if is_valid_recipe_name(title):
+            return title
+    
     return "Unknown Recipe"
+
+def is_valid_recipe_name(name: str) -> bool:
+    """
+    Validate that the extracted name is actually a recipe name.
+    """
+    name = name.strip()
+    
+    # Exclude generic terms
+    excluded_terms = [
+        'all recipes', 'recipes', 'recipe collection', 'recipe index',
+        'category', 'categories', 'archives', 'recent', 'popular',
+        'breakfast recipes', 'dinner ideas', 'lunch recipes',
+        'dessert recipes', 'snack recipes', 'main dishes'
+    ]
+    
+    name_lower = name.lower()
+    if any(excluded in name_lower for excluded in excluded_terms):
+        return False
+    
+    # Must be reasonable length
+    if len(name) < 3 or len(name) > 100:
+        return False
+    
+    # Should contain at least one food-related word
+    food_words = [
+        'chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 'tofu',
+        'pasta', 'rice', 'noodles', 'soup', 'salad', 'sandwich', 'burger',
+        'pizza', 'taco', 'curry', 'stew', 'roast', 'baked', 'grilled',
+        'cake', 'pie', 'cookie', 'bread', 'muffin', 'pancake', 'waffle',
+        'chocolate', 'vanilla', 'strawberry', 'apple', 'banana',
+        'potato', 'tomato', 'onion', 'garlic', 'cheese', 'egg'
+    ]
+    
+    return any(food_word in name_lower for food_word in food_words)
 
 def extract_cooking_time(soup: BeautifulSoup) -> str:
     """
