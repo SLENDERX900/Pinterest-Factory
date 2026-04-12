@@ -522,6 +522,117 @@ def extract_name_from_url(url: str) -> str:
     
     return None
 
+def extract_nutrition_facts(soup: BeautifulSoup) -> dict:
+    """
+    Extract nutrition facts from recipe page.
+    """
+    nutrition_facts = {}
+    
+    # Look for structured nutrition data
+    nutrition_selectors = [
+        '[itemprop="nutrition"]',
+        '.nutrition-facts',
+        '.recipe-nutrition',
+        '.nutrition-info',
+        '[itemprop="calories"]',
+        '[itemprop="protein"]',
+        '[itemprop="carbohydrateContent"]',
+        '[itemprop="fatContent"]'
+    ]
+    
+    for selector in nutrition_selectors:
+        element = soup.select_one(selector)
+        if element:
+            text = element.get_text().strip()
+            # Parse nutrition values
+            if 'calories' in selector:
+                nutrition_facts['calories'] = extract_number(text)
+            elif 'protein' in selector:
+                nutrition_facts['protein'] = extract_number(text)
+            elif 'carbohydrate' in selector:
+                nutrition_facts['carbs'] = extract_number(text)
+            elif 'fat' in selector:
+                nutrition_facts['fat'] = extract_number(text)
+    
+    # Look for common nutrition patterns in text
+    page_text = soup.get_text().lower()
+    
+    # Calorie patterns
+    calorie_patterns = [
+        r'(\d+)\s*calories?',
+        r'(\d+)\s*kcal?',
+        r'calories?\s*(\d+)',
+        r'energy\s*(\d+)'
+    ]
+    
+    for pattern in calorie_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            nutrition_facts['calories'] = extract_number(match.group(1))
+            break
+    
+    # Protein patterns
+    protein_patterns = [
+        r'(\d+)\s*g\s*protein?',
+        r'protein\s*(\d+)\s*g',
+        r'protein\s*(\d+)',
+        r'high protein\s*(\d+)'
+    ]
+    
+    for pattern in protein_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            nutrition_facts['protein'] = extract_number(match.group(1))
+            break
+    
+    # Carb patterns
+    carb_patterns = [
+        r'(\d+)\s*g\s*carbs?',
+        r'carbohydrate\s*(\d+)',
+        r'carbs?\s*(\d+)',
+        r'net carbs\s*(\d+)',
+        r'total carbs\s*(\d+)'
+    ]
+    
+    for pattern in carb_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            nutrition_facts['carbs'] = extract_number(match.group(1))
+            break
+    
+    # Fat patterns
+    fat_patterns = [
+        r'(\d+)\s*g\s*fat?',
+        r'fat\s*(\d+)\s*g',
+        r'fat\s*(\d+)',
+        r'total fat\s*(\d+)'
+    ]
+    
+    for pattern in fat_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            nutrition_facts['fat'] = extract_number(match.group(1))
+            break
+    
+    # Time-based estimates (when no explicit nutrition found)
+    if not nutrition_facts.get('calories') and 'minute' in page_text:
+        # Estimate calories based on cooking time (rough estimate)
+        time_match = re.search(r'(\d+)\s*minutes?', page_text)
+        if time_match:
+            estimated_calories = int(time_match.group(1)) * 8  # Rough estimate: 8 cal/min
+            nutrition_facts['calories'] = str(estimated_calories)
+    
+    return nutrition_facts
+
+def extract_number(text: str) -> str:
+    """
+    Extract numeric value from text.
+    """
+    match = re.search(r'(\d+)', text)
+    if match:
+        return match.group(1)
+    return None
+
 def is_valid_recipe_name(name: str) -> bool:
     """
     Validate that the extracted name is actually a recipe name.
@@ -558,7 +669,7 @@ def is_valid_recipe_name(name: str) -> bool:
 
 def extract_cooking_time(soup: BeautifulSoup) -> str:
     """
-    Extract cooking time information.
+    Extract cooking time with enhanced patterns.
     """
     # Look for time-related information
     time_patterns = [
@@ -566,55 +677,201 @@ def extract_cooking_time(soup: BeautifulSoup) -> str:
         r'(\d+)\s*minutes?',
         r'(\d+)\s*hrs?',
         r'(\d+)\s*hours?',
-        r'(\d+)\s*hr'
+        r'cook\s*time\s*[:](\d+)\s*(?:mins?|minutes?)',
+        r'prep\s*time\s*[:](\d+)\s*(?:mins?|minutes?)',
+        r'ready\s*in\s*(\d+)\s*(?:hrs?|hours?)',
+        r'total\s*time\s*[:](\d+)\s*(?:mins?|minutes?)',
+        r'duration\s*=\s*["\']?(\d+)\s*(?:hrs?|hours?|mins?|minutes?)',
+        r'\b(?:cooks?|takes?)\s*(\d+)\s*(?:hr|hrs|hour|mins|minutes?)\b',
+        r'\b(?:preps?|prepares?)\s*(\d+)\s*(?:hr|hrs|hour|mins|minutes?)\b'
     ]
     
-    # Check common time selectors
+    # Look for time selectors
     time_selectors = [
         '[itemprop="cookTime"]',
         '[itemprop="totalTime"]',
         '.cook-time',
         '.prep-time',
         '.recipe-time',
-        '.time'
+        '.time',
+        'meta[property="article:prep_time"]',
+        'meta[property="article:cook_time"]',
+        '.time-required',
+        '.ready-time',
+        '.duration',
+        '.recipe-details-time',
+        '.cooking-time',
+        '.prep-time-required',
+        '.time-to-cook'
     ]
     
     for selector in time_selectors:
         element = soup.select_one(selector)
         if element:
-            time_text = element.get_text().lower()
-            for pattern in time_patterns:
-                match = re.search(pattern, time_text)
-                if match:
-                    number = match.group(1)
-                    if 'hr' in time_text:
-                        return f"{number} hr"
-                    else:
-                        return f"{number} mins"
+            time_text = element.get_text().strip()
+            # Parse time from structured data
+            time = parse_time_from_text(time_text)
+            if time:
+                return time
     
-    # If no structured time found, return default
-    return "30 mins"
+    # Fallback: look for time patterns in page text
+    page_text = soup.get_text().lower()
+    
+    # Extract from various time formats
+    for pattern in time_patterns:
+        match = re.search(pattern, page_text)
+        if match:
+            number = match.group(1)
+            unit = 'hr' if 'hr' in pattern else 'mins'
+            return f"{number} {unit}"
+    
+    return "30 mins"  # Default fallback
+
+def parse_time_from_text(time_text: str) -> str:
+    """
+    Parse time from various text formats.
+    """
+    # Handle different time formats
+    time_patterns = [
+        r'(\d+)\s*hr',
+        r'(\d+)\s*hrs?',
+        r'(\d+)\s*hour',
+        r'(\d+)\s*mins?',
+        r'(\d+)\s*minutes?',
+        r'(\d+)\s*min'
+    ]
+    
+    for pattern in time_patterns:
+        match = re.search(pattern, time_text)
+        if match:
+            return match.group(0)
+    
+    return None
 
 def extract_ingredient_count(soup: BeautifulSoup) -> str:
     """
-    Extract or estimate ingredient count.
+    Extract ingredient count with enhanced patterns.
     """
-    # Look for ingredient lists
+    # Method 1: Look for structured ingredient lists
     ingredient_selectors = [
         '.ingredients li',
         '.ingredient-list li',
         '[itemprop="recipeIngredient"]',
-        '.recipe-ingredients li'
+        '.recipe-ingredients li',
+        '.ingredients-list li',
+        '.recipe-ingredients ul li',
+        '.wp-block-ingredients-list li',
+        '.tasty-recipes-ingredients li',
+        '.recipe-ingredients ol li',
+        '.ingredient-group'
     ]
     
     for selector in ingredient_selectors:
         ingredients = soup.select(selector)
         if len(ingredients) > 0:
+            print(f"Found {len(ingredients)} ingredients using selector: {selector}")
             return str(len(ingredients))
     
-    # If no structured ingredients found, estimate based on content
-    # This is a fallback - could be improved
-    return "8"
+    # Method 2: Look for numbered ingredient lists
+    numbered_patterns = [
+        r'(\d+)\.\s*ingredients?',
+        r'(\d+)\.\s*ingredient[s]?',
+        r'ingredients?\s*(\d+)'
+    ]
+    
+    page_text = soup.get_text()
+    for pattern in numbered_patterns:
+        matches = re.findall(pattern, page_text, re.IGNORECASE)
+        if matches:
+            print(f"Found {len(matches)} numbered ingredients using pattern: {pattern}")
+            return str(len(matches))
+    
+    # Method 3: Look for ingredient headings and count items
+    heading_patterns = [
+        r'ingredients[:\n]',
+        r'what you\\'ll need[:\n]',
+        r'for the recipe[:\n]',
+        r'you will need[:\n]'
+    ]
+    
+    for pattern in heading_patterns:
+        if re.search(pattern, page_text, re.IGNORECASE):
+            # Count lines after the heading
+            heading_match = re.search(pattern, page_text, re.IGNORECASE)
+            if heading_match:
+                remaining_text = page_text[heading_match.end():]
+                # Count individual ingredients (one per line assumption)
+                ingredient_lines = [line.strip() for line in remaining_text.split('\n') if line.strip() and len(line.strip()) > 2]
+                if ingredient_lines:
+                    print(f"Found {len(ingredient_lines)} ingredients from heading pattern: {pattern}")
+                    return str(len(ingredient_lines))
+    
+    # Method 4: Look for bullet points and dashes
+    bullet_patterns = [
+        r'•\s*[\w\s]+\s*[-–—]',
+        r'[-*]\s*[\w\s]+\s*[-–—]',
+        r'\\*\s*[\w\s]+\s*[-–—]'
+    ]
+    
+    for pattern in bullet_patterns:
+        matches = re.findall(pattern, page_text)
+        if matches:
+            print(f"Found {len(matches)} bullet-point ingredients using pattern: {pattern}")
+            return str(len(matches))
+    
+    # Method 5: Look for ingredient mentions in text
+    page_text = soup.get_text().lower()
+    ingredient_indicators = [
+        'ingredients:', 'ingredient list', 'you will need', 'gather together',
+        'mix together', 'combine', 'add the', 'place in bowl',
+        'stir in', 'fold in', 'whisk', 'blend',
+        'toss', 'season with', 'garnish',
+        'cup', 'tablespoon', 'teaspoon', 'clove',
+        'slice', 'dice', 'chop', 'grate', 'mince'
+    ]
+    
+    count = 0
+    for indicator in ingredient_indicators:
+        count += page_text.count(indicator)
+    
+    # Method 6: Look for common ingredient separators
+    separator_patterns = [
+        r'[,;\\/]',
+        r'\s+and\s+',
+        r'\s+or\s+',
+        r'\s+with\s+'
+    ]
+    
+    for pattern in separator_patterns:
+        matches = re.split(pattern, page_text)
+        if len(matches) > len(matches[0]):  # More separators than just spaces
+            print(f"Found {len(matches)} ingredients using separator pattern: {pattern}")
+            return str(len(matches))
+    
+    # Method 7: Fallback to text analysis
+    # Count common cooking verbs and ingredient words
+    cooking_verbs = ['add', 'mix', 'stir', 'chop', 'dice', 'slice', 'grate', 'whisk', 'blend', 'fold', 'toss', 'season', 'garnish']
+    ingredient_words = ['cup', 'tablespoon', 'teaspoon', 'clove', 'onion', 'garlic', 'butter', 'oil', 'salt', 'pepper', 'sugar', 'flour', 'egg', 'milk', 'cheese', 'cream', 'water', 'rice', 'pasta', 'chicken', 'beef', 'pork', 'fish', 'tomato', 'potato', 'carrot', 'celery', 'lettuce', 'herb']
+    
+    text_lower = page_text.lower()
+    ingredient_count = 0
+    
+    # Count cooking verbs followed by ingredient words
+    for verb in cooking_verbs:
+        for ingredient in ingredient_words:
+            if f"{verb} {ingredient}" in text_lower:
+                ingredient_count += 1
+    
+    # Count standalone ingredient words
+    for ingredient in ingredient_words:
+        if f" {ingredient} " in text_lower or f"{ingredient}," in text_lower:
+            ingredient_count += 1
+    
+    if ingredient_count > 0:
+        return str(ingredient_count)
+    
+    print(f"Estimated ingredient count: {ingredient_count} (method: text analysis)")
+    return "8"  # Default fallback
 
 def determine_recipe_benefit(soup: BeautifulSoup, recipe_name: str) -> str:
     """

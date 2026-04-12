@@ -68,6 +68,52 @@ def render_intake():
         st.session_state.batch_locked = False
         st.session_state.ai_generated = False
         st.success(f"Loaded {len(selections)} recipe(s) into the form.")
+        
+        # Show nutrition facts for selected recipes
+        if any('nutrition_facts' in r for r in selections):
+            with st.expander("🥊 Nutrition Facts", expanded=False):
+                st.caption("Nutrition information extracted from recipe pages.")
+                
+                for recipe in selections:
+                    if 'nutrition_facts' in recipe and recipe['nutrition_facts']:
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.markdown(f"**{recipe['name']}**")
+                        
+                        with col2:
+                            if recipe['nutrition_facts'].get('calories'):
+                                st.metric("Calories", recipe['nutrition_facts']['calories'])
+                            if recipe['nutrition_facts'].get('protein'):
+                                st.metric("Protein (g)", recipe['nutrition_facts']['protein'])
+                            if recipe['nutrition_facts'].get('carbs'):
+                                st.metric("Carbs (g)", recipe['nutrition_facts']['carbs'])
+                            if recipe['nutrition_facts'].get('fat'):
+                                st.metric("Fat (g)", recipe['nutrition_facts']['fat'])
+                        
+                        with col3:
+                            st.markdown("**Nutrition Highlights**")
+                            highlights = []
+                            
+                            # Generate highlights based on nutrition data
+                            if recipe['nutrition_facts'].get('calories'):
+                                calories = int(recipe['nutrition_facts']['calories'])
+                                if calories < 300:
+                                    highlights.append("🥗 Low calorie (< 300 cal)")
+                                elif calories < 500:
+                                    highlights.append("⚖️ Moderate calorie (300-500 cal)")
+                                else:
+                                    highlights.append("🔥 High calorie (> 500 cal)")
+                            
+                            if recipe['nutrition_facts'].get('protein') and int(recipe['nutrition_facts']['protein']) > 20:
+                                highlights.append("💪 High protein (> 20g)")
+                            if recipe['nutrition_facts'].get('carbs') and int(recipe['nutrition_facts']['carbs']) < 15:
+                                highlights.append("🌾 Low carb (< 15g)")
+                            
+                            for highlight in highlights:
+                                st.markdown(f"• {highlight}")
+                        
+                        st.divider()
 
     # Web scraping interface
     with st.expander("🌐 Scrape Recipes from Website", expanded=True):

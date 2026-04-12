@@ -140,6 +140,7 @@ OLLAMA_TIMEOUT=180
 ### Recipe Management
 - Automatic web scraping from food blog websites
 - Intelligent recipe extraction (name, time, ingredients, benefits)
+- **Nutrition Facts Extraction**: Automatically extracts calories, protein, carbs, and fat from recipe pages
 - Custom recipe entry with URL validation
 - Benefit categorization (Quick Weeknight, High Protein, Budget Friendly, etc.)
 - Batch locking to prevent accidental changes
@@ -167,9 +168,10 @@ OLLAMA_TIMEOUT=180
 ### Web Scraping Features
 The app automatically extracts recipe information from food blog websites:
 - **Recipe Detection**: Finds recipe links using common URL patterns
-- **Data Extraction**: Extracts recipe names, cooking times, ingredient counts, and benefits
+- **Data Extraction**: Extracts recipe names, cooking times, ingredient counts, benefits, and **nutrition facts**
 - **Smart Categorization**: Automatically categorizes recipes based on content analysis
 - **Respectful Scraping**: Includes rate limiting to avoid overwhelming servers
+- **Nutrition Intelligence**: Estimates calories when data not available and highlights key nutritional information
 
 ### Manual Recipe Entry
 You can still add recipes manually if web scraping doesn't find all your content:
@@ -178,6 +180,13 @@ You can still add recipes manually if web scraping doesn't find all your content
 # Manual entry format (for reference)
 {"name": "Recipe Name", "url": "https://yourwebsite.com/recipe-slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
 ```
+
+### Nutrition Facts Display
+When recipes are scraped, the app automatically:
+- Extracts calories, protein, carbohydrates, and fat from structured data
+- Shows nutrition metrics in a clean, organized format
+- Generates highlights based on nutritional content (low calorie, high protein, etc.)
+- Provides estimates when exact nutrition data isn't available
 
 ### Customising Pin Templates
 Replace `template.png` with your own design template. The system automatically overlays text based on the template dimensions.
