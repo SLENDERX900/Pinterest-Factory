@@ -106,7 +106,7 @@ OLLAMA_TIMEOUT=180
 2. **Navigate through the 4-step workflow:**
 
    **Step 1: Batch Intake**
-   - Select 5-10 recipes from the pre-populated nobscooking.com list
+   - Select 5-10 recipes from the pre-populated website list
    - Add custom recipes if needed
    - Lock the batch to proceed
 
@@ -117,7 +117,7 @@ OLLAMA_TIMEOUT=180
 
    **Step 3: Pin Generation**
    - Generate visual pins using custom templates
-   - Customize typography and layout
+   - Customise typography and layout
    - Export pin images
 
    **Step 4: Notion Sync**
@@ -128,14 +128,14 @@ OLLAMA_TIMEOUT=180
 ## Features in Detail
 
 ### Recipe Management
-- Pre-populated with 20+ nobscooking.com recipes
+- Pre-populated with website recipes
 - Custom recipe entry with URL validation
-- Benefit categorization (Quick Weeknight, High Protein, Budget Friendly, etc.)
+- Benefit categorisation (Quick Weeknight, High Protein, Budget Friendly, etc.)
 - Batch locking to prevent accidental changes
 
 ### AI-Powered Copy Generation
 - Multiple hook angles per recipe (5-7 variations)
-- Compelling descriptions optimized for Pinterest
+- Compelling descriptions optimised for Pinterest
 - Local Ollama integration for privacy and cost control
 - Customizable prompts and parameters
 
@@ -154,17 +154,17 @@ OLLAMA_TIMEOUT=180
 ## Development
 
 ### Adding New Recipes
-Edit `components/intake.py` to add new recipes to the `NOBSCOOKING_RECIPES` list:
+Edit `components/intake.py` to add new recipes to the `WEBSITE_RECIPES` list:
 
 ```python
 {"name": "Recipe Name", "url": "https://example.com/recipe-slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
 ```
 
-### Customizing Pin Templates
+### Customising Pin Templates
 Replace `template.png` with your own design template. The system automatically overlays text based on the template dimensions.
 
 ### Extending AI Prompts
-Modify the prompt templates in `components/ai_engine.py` to customize the generated content style and tone.
+Modify the prompt templates in `components/ai_engine.py` to customise the generated content style and tone.
 
 ## Troubleshooting
 
@@ -175,7 +175,7 @@ Modify the prompt templates in `components/ai_engine.py` to customize the genera
 
 ### Notion Sync Problems
 - Verify integration token is valid
-- Ensure database is shared with the integration
+- Ensure databases is shared with the integration
 - Check database ID matches the correct database
 
 ### Font Rendering Issues
