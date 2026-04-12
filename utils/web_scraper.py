@@ -169,45 +169,148 @@ def extract_urls_from_sitemap(sitemap_url: str, headers: dict) -> list[str]:
 
 def extract_recipe_info_with_validation(url: str, headers: dict) -> dict:
     """
-    Extract recipe information with schema validation.
+    Extract recipe information with schema validation and extraction memory.
     """
+    # Initialize extraction memory for this URL
+    extraction_memory = {
+        'url': url,
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'schema_found': False,
+        'extraction_steps': [],
+        'raw_data_found': {},
+        'final_values': {},
+        'errors': []
+    }
+    
+    def log_step(step_name: str, details: dict):
+        """Log an extraction step with details."""
+        extraction_memory['extraction_steps'].append({
+            'step': step_name,
+            'timestamp': time.strftime('%H:%M:%S'),
+            'details': details
+        })
+    
     try:
+        log_step('http_request', {'status': 'started', 'url': url})
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
+        log_step('http_request', {'status': 'success', 'status_code': response.status_code, 'content_length': len(response.content)})
         
         soup = BeautifulSoup(response.content, 'html.parser')
+        log_step('html_parse', {'status': 'success', 'parser_used': 'html.parser'})
         
         # Step 1: Check for Recipe schema validation
-        if not has_recipe_schema(soup):
+        schema_found = has_recipe_schema(soup)
+        extraction_memory['schema_found'] = schema_found
+        log_step('schema_validation', {'schema_found': schema_found})
+        
+        if not schema_found:
+            log_step('extraction_aborted', {'reason': 'No recipe schema found'})
             print(f"No recipe schema found on {url}")
-            return None  # Not a recipe page
+            return None
         
-        # Step 2: Extract recipe information
-        name = extract_recipe_name(soup)
+        # Step 2: Extract recipe name
+        log_step('extract_name', {'status': 'started'})
+        name = extract_recipe_name(soup, memory=extraction_memory)
+        extraction_memory['final_values']['name'] = name
+        log_step('extract_name', {
+            'status': 'completed', 
+            'value': name,
+            'method_used': extraction_memory.get('name_method_used', 'unknown'),
+            'tried_methods': len(extraction_memory.get('name_extraction_log', []))
+        })
+        
         if name == "Unknown Recipe":
-            print(f"Could not extract recipe name from {url}")
-            # Debug: show available titles
+            # Document what we tried
             title_tag = soup.find('title')
-            if title_tag:
-                print(f"  Page title: {title_tag.get_text()}")
             h1_tag = soup.find('h1')
-            if h1_tag:
-                print(f"  H1 content: {h1_tag.get_text()}")
+            h2_tags = soup.find_all('h2')[:3]
+            extraction_memory['raw_data_found']['page_title'] = title_tag.get_text() if title_tag else None
+            extraction_memory['raw_data_found']['h1_content'] = h1_tag.get_text() if h1_tag else None
+            extraction_memory['raw_data_found']['h2_contents'] = [h.get_text() for h in h2_tags]
+            log_step('extract_name_failed', {
+                'extraction_log': extraction_memory.get('name_extraction_log', []),
+                'all_methods_tried': [log.get('method') for log in extraction_memory.get('name_extraction_log', [])]
+            })
         
-        time_info = extract_cooking_time(soup)
+        # Step 3: Extract times
+        log_step('extract_times', {'status': 'started'})
+        prep_time, cook_time, total_time = extract_recipe_times(soup)
+        extraction_memory['final_values']['prep_time'] = prep_time
+        extraction_memory['final_values']['cook_time'] = cook_time
+        extraction_memory['final_values']['total_time'] = total_time
+        log_step('extract_times', {
+            'status': 'completed',
+            'prep_time': prep_time,
+            'cook_time': cook_time,
+            'total_time': total_time
+        })
+        
+        # Step 4: Extract ingredient count
+        log_step('extract_ingredients', {'status': 'started'})
         ingredient_count = extract_ingredient_count(soup)
-        benefit = determine_recipe_benefit(soup, name)
+        extraction_memory['final_values']['ingredients'] = ingredient_count
+        log_step('extract_ingredients', {'status': 'completed', 'value': ingredient_count})
         
-        return {
+        # Step 5: Determine benefit
+        log_step('determine_benefit', {'status': 'started', 'recipe_name': name})
+        benefit = determine_recipe_benefit(soup, name)
+        extraction_memory['final_values']['benefit'] = benefit
+        log_step('determine_benefit', {'status': 'completed', 'value': benefit})
+        
+        # Step 6: Extract nutrition facts
+        log_step('extract_nutrition', {'status': 'started'})
+        nutrition_facts = extract_nutrition_facts(soup)
+        extraction_memory['final_values']['nutrition_facts'] = nutrition_facts
+        log_step('extract_nutrition', {'status': 'completed', 'facts_found': list(nutrition_facts.keys()) if nutrition_facts else []})
+        
+        # Create final result with extraction memory attached
+        result = {
             'name': name,
             'url': url,
-            'time': time_info,
+            'prep_time': prep_time,
+            'cook_time': cook_time,
+            'total_time': total_time,
+            'time': total_time if total_time else (cook_time if cook_time else prep_time),
             'ingredients': ingredient_count,
-            'benefit': benefit
+            'benefit': benefit,
+            'nutrition_facts': nutrition_facts,
+            '_extraction_memory': extraction_memory  # Internal tracking data
         }
         
+        log_step('extraction_complete', {'success': True})
+        
+        # Print summary for debugging
+        print(f"\n📄 Extraction Summary for: {url}")
+        print(f"   Name: {name}")
+        print(f"   Times: Prep={prep_time}, Cook={cook_time}, Total={total_time}")
+        print(f"   Ingredients: {ingredient_count}")
+        print(f"   Benefit: {benefit}")
+        print(f"   Steps completed: {len(extraction_memory['extraction_steps'])}")
+        
+        return result
+        
     except Exception as e:
-        print(f"Error extracting recipe info from {url}: {e}")
+        error_msg = str(e)
+        extraction_memory['errors'].append({'error': error_msg, 'timestamp': time.strftime('%H:%M:%S')})
+        log_step('extraction_error', {'error': error_msg})
+        print(f"❌ Error extracting recipe info from {url}: {error_msg}")
+        
+        # Even on error, return what we managed to extract
+        if extraction_memory['final_values']:
+            return {
+                'name': extraction_memory['final_values'].get('name', 'Unknown Recipe'),
+                'url': url,
+                'prep_time': extraction_memory['final_values'].get('prep_time', ''),
+                'cook_time': extraction_memory['final_values'].get('cook_time', ''),
+                'total_time': extraction_memory['final_values'].get('total_time', ''),
+                'time': '',
+                'ingredients': extraction_memory['final_values'].get('ingredients', ''),
+                'benefit': extraction_memory['final_values'].get('benefit', 'Quick Weeknight'),
+                'nutrition_facts': extraction_memory['final_values'].get('nutrition_facts', {}),
+                '_extraction_memory': extraction_memory,
+                '_extraction_error': error_msg
+            }
         return None
 
 def has_recipe_schema(soup: BeautifulSoup) -> bool:
@@ -380,61 +483,98 @@ def extract_recipe_info(url: str, headers: dict) -> dict:
         print(f"Error extracting recipe info from {url}: {e}")
         return None
 
-def extract_recipe_name(soup: BeautifulSoup) -> str:
+def extract_recipe_name(soup: BeautifulSoup, memory: dict = None) -> str:
     """
-    Extract recipe name with multiple fallback methods.
+    Extract recipe name with multiple fallback methods and logging.
     """
+    extraction_log = []
+    
     # Method 1: Try to extract from Recipe schema first
     schema_name = extract_name_from_schema(soup)
+    extraction_log.append({'method': 'schema', 'found': schema_name, 'valid': is_valid_recipe_name(schema_name) if schema_name else False})
     if schema_name and is_valid_recipe_name(schema_name):
+        if memory:
+            memory['name_extraction_log'] = extraction_log
+            memory['name_method_used'] = 'schema'
         return schema_name
     
     # Method 2: Try various HTML selectors
     selectors = [
-        'h1',
-        '.recipe-title',
-        '.entry-title',
-        '.post-title',
-        '[itemprop="name"]',
-        '.recipe-name',
-        '.title',
-        'h2',
-        '.post-title entry-title',
-        '.recipe-title h1',
-        '.entry-content h1',
-        '.recipe h1',
-        '.wp-block-post-title',
-        '.elementor-heading-title'
+        ('h1', 'main_heading'),
+        ('.recipe-title', 'recipe_title_class'),
+        ('.entry-title', 'entry_title_class'),
+        ('.post-title', 'post_title_class'),
+        ('[itemprop="name"]', 'schema_name_attr'),
+        ('.recipe-name', 'recipe_name_class'),
+        ('.title', 'generic_title'),
+        ('h2', 'sub_heading'),
+        ('.wp-block-post-title', 'wordpress_block'),
+        ('.elementor-heading-title', 'elementor_heading')
     ]
     
-    for selector in selectors:
+    for selector, method_name in selectors:
         element = soup.select_one(selector)
         if element:
-            name = element.get_text().strip()
-            # Clean up the name
-            name = clean_recipe_name(name)
-            if is_valid_recipe_name(name):
-                return name
+            raw_name = element.get_text().strip()
+            cleaned_name = clean_recipe_name(raw_name)
+            is_valid = is_valid_recipe_name(cleaned_name)
+            extraction_log.append({
+                'method': method_name,
+                'selector': selector,
+                'raw_value': raw_name[:100],  # Limit length
+                'cleaned_value': cleaned_name,
+                'valid': is_valid
+            })
+            if is_valid:
+                if memory:
+                    memory['name_extraction_log'] = extraction_log
+                    memory['name_method_used'] = method_name
+                return cleaned_name
     
     # Method 3: Try to extract from page title
     title_tag = soup.find('title')
     if title_tag:
-        title = title_tag.get_text().strip()
+        raw_title = title_tag.get_text().strip()
         # Remove common suffixes
-        title = re.sub(r'\s*[-|]\s*.+$', '', title)  # Remove "| Site Name" 
+        title = re.sub(r'\s*[-|]\s*.+$', '', raw_title)  # Remove "| Site Name" 
         title = re.sub(r'\s*Recipe$', '', title, flags=re.IGNORECASE)
         title = re.sub(r'\s*\-.*$', '', title)  # Remove " - anything"
-        title = clean_recipe_name(title)
-        if is_valid_recipe_name(title):
-            return title
+        cleaned_title = clean_recipe_name(title)
+        is_valid = is_valid_recipe_name(cleaned_title)
+        extraction_log.append({
+            'method': 'page_title',
+            'raw_value': raw_title[:100],
+            'cleaned_value': cleaned_title,
+            'valid': is_valid
+        })
+        if is_valid:
+            if memory:
+                memory['name_extraction_log'] = extraction_log
+                memory['name_method_used'] = 'page_title'
+            return cleaned_title
     
     # Method 4: Try to find recipe name in URL path
     url_element = soup.find('link', rel='canonical')
     if url_element:
         url = url_element.get('href', '')
         name_from_url = extract_name_from_url(url)
-        if name_from_url:
+        is_valid = is_valid_recipe_name(name_from_url) if name_from_url else False
+        extraction_log.append({
+            'method': 'url_path',
+            'url': url,
+            'extracted': name_from_url,
+            'valid': is_valid
+        })
+        if name_from_url and is_valid:
+            if memory:
+                memory['name_extraction_log'] = extraction_log
+                memory['name_method_used'] = 'url_path'
             return name_from_url
+    
+    # Log failure
+    if memory:
+        memory['name_extraction_log'] = extraction_log
+        memory['name_method_used'] = 'failed'
     
     return "Unknown Recipe"
 
@@ -666,43 +806,56 @@ def is_valid_recipe_name(name: str) -> bool:
     
     return any(food_word in name_lower for food_word in food_words)
 
-def extract_cooking_time(soup: BeautifulSoup) -> str:
+def extract_recipe_times(soup: BeautifulSoup) -> tuple[str, str, str]:
     """
-    Extract cooking time - more accurate version that avoids false positives.
+    Extract prep time, cook time, and total time from recipe page.
+    Returns tuple of (prep_time, cook_time, total_time)
     """
-    # Method 1: Try structured data (most reliable)
-    time_selectors = [
-        ('[itemprop="totalTime"]', 'total'),
-        ('[itemprop="cookTime"]', 'cook'),
-        ('[itemprop="prepTime"]', 'prep'),
-        ('.recipe-time', 'total'),
-        ('.cook-time', 'cook'),
-        ('.prep-time', 'prep'),
-        ('.recipe-details-time', 'total'),
-        ('.duration', 'total')
-    ]
+    prep_time = ""
+    cook_time = ""
+    total_time = ""
     
-    for selector, time_type in time_selectors:
-        element = soup.select_one(selector)
-        if element:
-            time_text = element.get_text().strip()
-            time = parse_iso_duration(time_text)
-            if time and time != "1 mins":  # Avoid suspicious 1-minute times
-                print(f"Found {time_type} time: {time} using selector: {selector}")
-                return time
+    # Method 1: Try structured HTML selectors
+    selector_mapping = {
+        'prepTime': ('[itemprop="prepTime"]', '.prep-time'),
+        'cookTime': ('[itemprop="cookTime"]', '.cook-time'),
+        'totalTime': ('[itemprop="totalTime"]', '.recipe-time', '.recipe-details-time', '.duration')
+    }
     
-    # Method 2: Look for time in meta tags
-    meta_selectors = [
-        'meta[itemprop="cookTime"]',
-        'meta[itemprop="totalTime"]',
-        'meta[itemprop="prepTime"]'
-    ]
+    for time_type, selectors in selector_mapping.items():
+        for selector in selectors:
+            element = soup.select_one(selector)
+            if element:
+                time_text = element.get_text().strip()
+                time = parse_iso_duration(time_text)
+                if time and time != "1 mins":
+                    if time_type == 'prepTime':
+                        prep_time = time
+                    elif time_type == 'cookTime':
+                        cook_time = time
+                    elif time_type == 'totalTime':
+                        total_time = time
+                    break
     
-    for meta in soup.select(','.join(meta_selectors)):
-        content = meta.get('content', '')
-        time = parse_iso_duration(content)
-        if time and time != "1 mins":
-            return time
+    # Method 2: Check meta tags
+    meta_mapping = {
+        'prepTime': 'meta[itemprop="prepTime"]',
+        'cookTime': 'meta[itemprop="cookTime"]',
+        'totalTime': 'meta[itemprop="totalTime"]'
+    }
+    
+    for time_type, selector in meta_mapping.items():
+        meta = soup.select_one(selector)
+        if meta:
+            content = meta.get('content', '')
+            time = parse_iso_duration(content)
+            if time and time != "1 mins":
+                if time_type == 'prepTime' and not prep_time:
+                    prep_time = time
+                elif time_type == 'cookTime' and not cook_time:
+                    cook_time = time
+                elif time_type == 'totalTime' and not total_time:
+                    total_time = time
     
     # Method 3: Extract from JSON-LD schema (most reliable)
     scripts = soup.find_all('script', type='application/ld+json')
@@ -717,51 +870,77 @@ def extract_cooking_time(soup: BeautifulSoup) -> str:
             
             for schema in schemas:
                 if schema.get('@type') == 'Recipe' or (isinstance(schema.get('@type'), list) and 'Recipe' in schema.get('@type', [])):
-                    # Try totalTime first, then cookTime, then prepTime
-                    for time_field in ['totalTime', 'cookTime', 'prepTime']:
-                        time_value = schema.get(time_field)
-                        if time_value:
-                            time = parse_iso_duration(time_value)
-                            if time and time != "1 mins":
-                                print(f"Found {time_field}: {time} from JSON-LD schema")
-                                return time
+                    # Extract all three times from schema
+                    if not prep_time and schema.get('prepTime'):
+                        prep_time = parse_iso_duration(schema.get('prepTime'))
+                    if not cook_time and schema.get('cookTime'):
+                        cook_time = parse_iso_duration(schema.get('cookTime'))
+                    if not total_time and schema.get('totalTime'):
+                        total_time = parse_iso_duration(schema.get('totalTime'))
         except:
             pass
     
-    # Method 4: Search for time in page text with stricter patterns
+    # Method 4: Search for time in page text with specific patterns
     page_text = soup.get_text()
     
-    # Look for recipe time patterns (avoiding false positives like "1" being extracted from other contexts)
-    strict_patterns = [
-        # Look for "X minutes" or "X hours" near recipe-related words
-        r'(?:prep|cook|total|ready in)\s*(?:time)?[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
-        r'(?:prep|cook|total)\s*(?:time)?[:\s]*(?:about|around)?\s*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
-        r'(?:time required|time needed)[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
-        r'(?:takes|needs)\s*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)\s*(?:to\s*cook|to\s*prep|total)',
+    # Pattern for prep time
+    prep_patterns = [
+        r'prep\s*time[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'preparation\s*time[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'prep[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
     ]
     
-    for pattern in strict_patterns:
+    for pattern in prep_patterns:
         match = re.search(pattern, page_text, re.IGNORECASE)
-        if match:
+        if match and not prep_time:
             number = int(match.group(1))
-            # Sanity check - recipes shouldn't take less than 5 minutes or more than 24 hours
-            if 5 <= number <= 1440:
-                # Determine unit
+            if 1 <= number <= 180:  # Prep usually 1-180 mins
                 match_text = match.group(0).lower()
                 if 'hr' in match_text or 'hour' in match_text:
-                    if number == 1:
-                        return "1 hr"
-                    else:
-                        return f"{number} hrs"
+                    prep_time = f"{number} hr" if number == 1 else f"{number} hrs"
                 else:
-                    if number == 1:
-                        return "1 min"
-                    else:
-                        return f"{number} mins"
+                    prep_time = f"{number} mins"
+                break
     
-    # Return empty string if we can't determine accurately
-    print("Could not accurately determine cooking time")
-    return ""
+    # Pattern for cook time
+    cook_patterns = [
+        r'cook\s*time[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'cooking\s*time[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'cook[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+    ]
+    
+    for pattern in cook_patterns:
+        match = re.search(pattern, page_text, re.IGNORECASE)
+        if match and not cook_time:
+            number = int(match.group(1))
+            if 1 <= number <= 600:  # Cook time can be longer
+                match_text = match.group(0).lower()
+                if 'hr' in match_text or 'hour' in match_text:
+                    cook_time = f"{number} hr" if number == 1 else f"{number} hrs"
+                else:
+                    cook_time = f"{number} mins"
+                break
+    
+    # Pattern for total time
+    total_patterns = [
+        r'total\s*time[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'ready\s*in[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+        r'takes[:\s]*(\d+)\s*(?:mins?|minutes?|hrs?|hours?)',
+    ]
+    
+    for pattern in total_patterns:
+        match = re.search(pattern, page_text, re.IGNORECASE)
+        if match and not total_time:
+            number = int(match.group(1))
+            if 5 <= number <= 1440:  # Total time sanity check
+                match_text = match.group(0).lower()
+                if 'hr' in match_text or 'hour' in match_text:
+                    total_time = f"{number} hr" if number == 1 else f"{number} hrs"
+                else:
+                    total_time = f"{number} mins"
+                break
+    
+    return prep_time, cook_time, total_time
 
 def parse_iso_duration(duration_text: str) -> str:
     """
@@ -838,128 +1017,218 @@ def parse_time_from_text(time_text: str) -> str:
 
 def extract_ingredient_count(soup: BeautifulSoup) -> str:
     """
-    Extract ingredient count from recipe page - more accurate version.
+    Extract ingredient count from recipe page - counts actual bullet points and list items.
     """
-    # Method 1: Look for structured ingredient lists - most reliable
-    ingredient_selectors = [
-        '.ingredients li',
-        '.ingredient-list li',
-        '[itemprop="recipeIngredient"]',
-        '.recipe-ingredients li',
-        '.ingredients-list li',
-        '.recipe-ingredients ul li',
-        '.wp-block-ingredients-list li',
-        '.tasty-recipes-ingredients li',
-        '.recipe-ingredients ol li',
-        '.ingredient-group li',
-        '.wprm-recipe-ingredient',
-        '.tasty-recipes-ingredients-body li'
+    # Method 1: Count bullet points in ingredient lists (most accurate for visual count)
+    bullet_selectors = [
+        '.ingredients ul > li',
+        '.ingredients ol > li',
+        '.ingredient-list > li',
+        '.recipe-ingredients ul > li',
+        '.recipe-ingredients ol > li',
+        '.ingredients-list > li',
+        '.wp-block-ingredients-list > li',
+        '.tasty-recipes-ingredients ul > li',
+        '.tasty-recipes-ingredients ol > li',
+        '.tasty-recipes-ingredients-body > li',
+        '.wprm-recipe-ingredients-list > li',
+        '.ingredient-group > li',
+        '[itemprop="recipeIngredient"]'
     ]
     
-    for selector in ingredient_selectors:
+    for selector in bullet_selectors:
         ingredients = soup.select(selector)
-        if len(ingredients) > 0 and len(ingredients) < 50:  # Sanity check - recipes shouldn't have 50+ ingredients
-            # Verify these are actually ingredients by checking content
-            valid_ingredients = []
+        if 0 < len(ingredients) < 50:  # Sanity check
+            # Quick validation - just check it's not empty and has reasonable length
+            valid_count = 0
             for ing in ingredients:
                 text = ing.get_text().strip()
-                # Ingredient should have some substance and likely contain a measurement or ingredient word
-                if len(text) > 3 and len(text) < 200:
-                    # Check for measurement indicators
-                    has_measurement = any(unit in text.lower() for unit in ['cup', 'tbsp', 'tsp', 'oz', 'lb', 'g', 'kg', 'ml', 'tablespoon', 'teaspoon', 'pound', 'ounce', 'gram'])
-                    # Or check for common ingredient words
-                    has_ingredient = any(word in text.lower() for word in ['salt', 'pepper', 'oil', 'butter', 'garlic', 'onion', 'flour', 'sugar', 'egg', 'milk', 'water', 'chicken', 'beef', 'cheese', 'pasta', 'rice', 'vegetable'])
-                    if has_measurement or has_ingredient:
-                        valid_ingredients.append(text)
+                # Just ensure it's not empty and has some content
+                if len(text) > 2:
+                    valid_count += 1
             
-            if len(valid_ingredients) > 0:
-                print(f"Found {len(valid_ingredients)} valid ingredients using selector: {selector}")
-                return str(len(valid_ingredients))
+            if valid_count > 0:
+                print(f"Found {valid_count} ingredients using bullet selector: {selector}")
+                return str(valid_count)
     
-    # Method 2: Look for ingredient section and count items
-    page_text = soup.get_text()
-    
-    # Find the ingredients section
-    ingredient_section_patterns = [
-        r'(?i)ingredients[\s:]*\n((?:\s*[-•\d\.]\s*[^\n]+\n?)+)',
-        r'(?i)what you[\'\']?ll need[\s:]*\n((?:\s*[-•\d\.]\s*[^\n]+\n?)+)',
-        r'(?i)you will need[\s:]*\n((?:\s*[-•\d\.]\s*[^\n]+\n?)+)'
+    # Method 2: Count all list items within ingredient sections
+    ingredient_section_selectors = [
+        '.ingredients',
+        '.ingredient-list',
+        '.recipe-ingredients',
+        '.tasty-recipes-ingredients',
+        '.wprm-recipe-ingredients'
     ]
     
-    for pattern in ingredient_section_patterns:
-        match = re.search(pattern, page_text)
-        if match:
-            section = match.group(1)
-            # Count lines that look like ingredients (start with bullet, number, or have measurements)
-            lines = [line.strip() for line in section.split('\n') if line.strip()]
-            ingredient_lines = []
-            for line in lines:
-                # Check if line looks like an ingredient
-                if re.match(r'^[\s•\-\*\d\.]+', line) or any(unit in line.lower() for unit in ['cup', 'tbsp', 'tsp', 'oz', 'lb', 'g ', 'ml', 'tablespoon', 'teaspoon', 'pound']):
-                    if len(line) > 3 and len(line) < 200:
-                        ingredient_lines.append(line)
-            
-            if len(ingredient_lines) > 0:
-                print(f"Found {len(ingredient_lines)} ingredients from section pattern")
-                return str(len(ingredient_lines))
+    for section_selector in ingredient_section_selectors:
+        section = soup.select_one(section_selector)
+        if section:
+            # Count all list items within this section
+            all_items = section.find_all('li')
+            if 0 < len(all_items) < 50:
+                # Validate they're ingredients (not sub-lists or notes)
+                valid_count = 0
+                for item in all_items:
+                    text = item.get_text().strip()
+                    # Check if it looks like an ingredient (has measurement or common ingredient)
+                    has_measurement = any(unit in text.lower() for unit in ['cup', 'tbsp', 'tsp', 'oz', 'lb', 'g ', 'kg', 'ml', 'tablespoon', 'teaspoon', 'pound', 'ounce', 'gram', 'clove', 'piece', 'slice'])
+                    has_ingredient = any(word in text.lower() for word in ['salt', 'pepper', 'oil', 'butter', 'garlic', 'onion', 'flour', 'sugar', 'egg', 'milk', 'water', 'chicken', 'beef', 'cheese', 'pasta', 'rice', 'vegetable', 'fruit', 'herb', 'spice'])
+                    if (has_measurement or has_ingredient) and len(text) > 2:
+                        valid_count += 1
+                
+                if valid_count > 0:
+                    print(f"Found {valid_count} ingredients in section: {section_selector}")
+                    return str(valid_count)
     
-    # Method 3: Extract from JSON-LD schema
+    # Method 3: Extract from JSON-LD schema (structured data)
     scripts = soup.find_all('script', type='application/ld+json')
     for script in scripts:
         try:
             import json
             data = json.loads(script.string)
-            if isinstance(data, list):
-                schemas = data
-            else:
-                schemas = [data]
+            schemas = data if isinstance(data, list) else [data]
             
             for schema in schemas:
                 if schema.get('@type') == 'Recipe' or (isinstance(schema.get('@type'), list) and 'Recipe' in schema.get('@type', [])):
                     recipe_ingredients = schema.get('recipeIngredient', [])
-                    if recipe_ingredients and len(recipe_ingredients) > 0:
+                    if recipe_ingredients and 0 < len(recipe_ingredients) < 50:
                         print(f"Found {len(recipe_ingredients)} ingredients from JSON-LD schema")
                         return str(len(recipe_ingredients))
         except:
             pass
     
-    # Default - return empty to indicate extraction failed rather than guessing
+    # Method 4: Manual counting of bullet characters in ingredients section
+    page_text = soup.get_text()
+    
+    # Find ingredients section and count bullet points
+    ingredients_section_match = re.search(r'(?i)ingredients[\s:]*\n(.*?)(?:\n\n|\n[A-Z]|instructions|directions|method|$)', page_text, re.DOTALL)
+    if ingredients_section_match:
+        section = ingredients_section_match.group(1)
+        # Count lines that start with bullet characters
+        bullet_pattern = r'^[\s•\-\*\+\d]'
+        lines = section.split('\n')
+        bullet_count = 0
+        for line in lines:
+            if re.match(bullet_pattern, line.strip()) and len(line.strip()) > 3:
+                bullet_count += 1
+        
+        if bullet_count > 0:
+            print(f"Found {bullet_count} bullet points in ingredients section")
+            return str(bullet_count)
+    
+    # Default - return empty to indicate extraction failed
     print("Could not accurately determine ingredient count")
     return ""
 
 def determine_recipe_benefit(soup: BeautifulSoup, recipe_name: str) -> str:
     """
-    Determine recipe benefit/category based on content and name.
+    Determine recipe benefit/category based on content and name with scoring system.
     """
     name_lower = recipe_name.lower()
     page_text = soup.get_text().lower()
     
-    # Define benefit categories with keywords
+    # Define benefit categories with keywords and weights
     benefits = {
-        "Quick Weeknight": ["quick", "fast", "easy", "simple", "weeknight", "busy"],
-        "High Protein": ["protein", "chicken", "beef", "fish", "meat", "tofu"],
-        "Budget Friendly": ["budget", "cheap", "affordable", "economical"],
-        "Vegan": ["vegan", "plant-based", "dairy-free"],
-        "Vegetarian": ["vegetarian", "meatless", "meat-free"],
-        "Healthy": ["healthy", "light", "low-fat", "nutritious"],
-        "Comfort Food": ["comfort", "cozy", "hearty", "warm"],
-        "One Pan": ["one pan", "one-pot", "single pan"],
-        "Meal Prep": ["meal prep", "make-ahead", "batch"],
-        "Spicy": ["spicy", "hot", "chili", "pepper"],
-        "Date Night": ["romantic", "date", "special", "elegant"]
+        "Quick Weeknight": {
+            "keywords": ["quick", "fast", "easy", "simple", "weeknight", "busy", "15 minute", "20 minute", "30 minute", "under 30", "15 min", "20 min", "30 min"],
+            "weight": 3,
+            "time_threshold": 30  # Minutes
+        },
+        "High Protein": {
+            "keywords": ["high protein", "protein-rich", "protein packed"],
+            "ingredients": ["chicken", "beef", "fish", "salmon", "tuna", "shrimp", "turkey", "pork", "lamb", "tofu", "tempeh", "eggs", "egg", "lentils", "beans", "quinoa"],
+            "weight": 2
+        },
+        "Budget Friendly": {
+            "keywords": ["budget", "cheap", "affordable", "economical", "inexpensive", "frugal", "money-saving"],
+            "weight": 2
+        },
+        "Vegan": {
+            "keywords": ["vegan", "plant-based", "plant based", "dairy-free", "dairy free", "no animal", "cruelty-free"],
+            "weight": 3
+        },
+        "Vegetarian": {
+            "keywords": ["vegetarian", "meatless", "meat-free", "meat free"],
+            "weight": 2
+        },
+        "Healthy": {
+            "keywords": ["healthy", "light", "low-fat", "low fat", "nutritious", "fresh", "clean eating", "wholesome", "good for you"],
+            "weight": 2
+        },
+        "Comfort Food": {
+            "keywords": ["comfort food", "comforting", "cozy", "hearty", "warm", "soul food", "rich", "indulgent"],
+            "weight": 2
+        },
+        "One Pan": {
+            "keywords": ["one pan", "one-pot", "one pot", "single pan", "sheet pan", "skillet", "one dish"],
+            "weight": 3
+        },
+        "Meal Prep": {
+            "keywords": ["meal prep", "make-ahead", "make ahead", "batch cook", "freezer friendly", "storage", "prep ahead"],
+            "weight": 2
+        },
+        "Spicy": {
+            "keywords": ["spicy", "hot", "chili", "chilli", "pepper", "jalapeño", "cayenne", "sriracha", "heat", "fiery"],
+            "weight": 2
+        },
+        "Date Night": {
+            "keywords": ["romantic", "date night", "date-night", "special occasion", "elegant", "fancy", "impressive"],
+            "weight": 2
+        },
+        "No Oven": {
+            "keywords": ["no oven", "stovetop", "stove top", "grill", "grilled", "raw", "no bake", "no-bake"],
+            "weight": 2
+        }
     }
     
-    # Check name first
-    for benefit, keywords in benefits.items():
-        if any(keyword in name_lower for keyword in keywords):
-            return benefit
+    # Score each benefit
+    scores = {}
     
-    # Then check page content
-    for benefit, keywords in benefits.items():
-        if any(keyword in page_text for keyword in keywords):
-            return benefit
+    for benefit, data in benefits.items():
+        score = 0
+        
+        # Check keywords in recipe name (higher weight)
+        for keyword in data.get("keywords", []):
+            if keyword in name_lower:
+                score += data["weight"] * 2  # Double weight for name matches
+        
+        # Check keywords in page content
+        for keyword in data.get("keywords", []):
+            if keyword in page_text:
+                score += data["weight"]
+        
+        # Check ingredients for specific benefits
+        if "ingredients" in data:
+            for ingredient in data["ingredients"]:
+                if ingredient in name_lower or ingredient in page_text:
+                    score += 1
+        
+        # Special check for Quick Weeknight based on time
+        if benefit == "Quick Weeknight":
+            # Look for time indicators in recipe name
+            time_match = re.search(r'(\d+)\s*(?:min|minute)', name_lower)
+            if time_match:
+                minutes = int(time_match.group(1))
+                if minutes <= data["time_threshold"]:
+                    score += 3
+        
+        scores[benefit] = score
     
-    # Default fallback
+    # Find benefit with highest score
+    if scores:
+        max_score = max(scores.values())
+        if max_score > 0:
+            best_benefit = max(scores, key=scores.get)
+            return best_benefit
+    
+    # Default fallback - try to infer from recipe name structure
+    if any(word in name_lower for word in ['salad', 'soup', 'stew', 'curry']):
+        return "Healthy"
+    elif any(word in name_lower for word in ['pasta', 'noodles', 'rice']):
+        return "Quick Weeknight"
+    elif any(word in name_lower for word in ['cake', 'cookie', 'pie', 'dessert']):
+        return "Comfort Food"
+    
     return "Quick Weeknight"
 
 def validate_url(url: str) -> bool:
