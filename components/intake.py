@@ -114,7 +114,9 @@ def render_intake():
                             quick_selections = []
                             for i, r in enumerate(filtered):
                                 col = cols[i % 3]
-                                if col.checkbox(f"{r['name']} · {r['time']}", key=f"scraped_{r['name']}"):
+                                # Create unique key using index to avoid duplicates
+                                unique_key = f"scraped_{i}_{hash(r['url']) % 10000}"
+                                if col.checkbox(f"{r['name']} · {r['time']}", key=unique_key):
                                     quick_selections.append(r)
                             
                             st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
@@ -144,7 +146,9 @@ def render_intake():
             quick_selections = []
             for i, r in enumerate(filtered):
                 col = cols[i % 3]
-                if col.checkbox(f"{r['name']} · {r['time']}", key=f"prev_{r['name']}"):
+                # Create unique key using index to avoid duplicates
+                unique_key = f"prev_{i}_{hash(r['url']) % 10000}"
+                if col.checkbox(f"{r['name']} · {r['time']}", key=unique_key):
                     quick_selections.append(r)
             
             st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
