@@ -8,10 +8,12 @@ from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin, urlparse
 import time
+import xml.etree.ElementTree as ET
+from urllib.parse import urljoin, urlparse
 
 def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[dict]:
     """
-    Scrape recipe information from a food blog website.
+    Scrape recipe information from a food blog website using sitemap discovery.
     
     Args:
         base_url: The base URL of the food blog
@@ -21,34 +23,240 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
         List of recipe dictionaries with name, url, time, ingredients, benefit
     """
     try:
-        # Get the main page
+        # Normalize base URL
+        base_url = base_url.rstrip('/')
+        parsed = urlparse(base_url)
+        domain = f"{parsed.scheme}://{parsed.netloc}"
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         
-        response = requests.get(base_url, headers=headers, timeout=10)
+        print(f"Discovering sitemap for {domain}")
+        
+        # Step 1: Discover sitemap
+        sitemap_urls = discover_sitemaps(domain, headers)
+        if not sitemap_urls:
+            print("No sitemap found, falling back to homepage scraping")
+            return fallback_homepage_scraping(base_url, max_recipes, headers)
+        
+        print(f"Found {len(sitemap_urls)} sitemap(s)")
+        
+        # Step 2: Extract URLs from sitemaps
+        all_urls = []
+        for sitemap_url in sitemap_urls:
+            urls = extract_urls_from_sitemap(sitemap_url, headers)
+            all_urls.extend(urls)
+        
+        if not all_urls:
+            print("No URLs found in sitemaps")
+            return []
+        
+        print(f"Extracted {len(all_urls)} URLs from sitemaps")
+        
+        # Step 3: Take the most recent URLs (sitemaps are usually ordered by date)
+        recent_urls = all_urls[:max_recipes * 2]  # Get more to account for non-recipes
+        
+        # Step 4: Iterative scraping with recipe validation
+        recipes = []
+        for url in recent_urls:
+            if len(recipes) >= max_recipes:
+                break
+                
+            try:
+                recipe = extract_recipe_info_with_validation(url, headers)
+                if recipe:
+                    recipes.append(recipe)
+                    print(f"✓ Found recipe: {recipe['name']}")
+                time.sleep(1)  # Be respectful to the server
+            except Exception as e:
+                print(f"Error scraping {url}: {e}")
+                continue
+        
+        print(f"Successfully extracted {len(recipes)} recipes")
+        return recipes
+        
+    except Exception as e:
+        print(f"Error scraping website {base_url}: {e}")
+        return []
+
+def discover_sitemaps(domain: str, headers: dict) -> list[str]:
+    """
+    Discover sitemap URLs for a domain.
+    """
+    sitemap_urls = []
+    
+    # Check robots.txt first
+    robots_url = f"{domain}/robots.txt"
+    try:
+        response = requests.get(robots_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            content = response.text
+            # Look for Sitemap directives
+            for line in content.split('\n'):
+                if line.startswith('Sitemap:'):
+                    sitemap_url = line.split(':', 1)[1].strip()
+                    sitemap_urls.append(sitemap_url)
+    except Exception as e:
+        print(f"Error checking robots.txt: {e}")
+    
+    # If no sitemaps found in robots.txt, try common locations
+    if not sitemap_urls:
+        common_sitemaps = [
+            f"{domain}/sitemap.xml",
+            f"{domain}/sitemap_index.xml",
+            f"{domain}/sitemap_index.xml",
+            f"{domain}/wp-sitemap.xml",
+            f"{domain}/sitemap/sitemap-index.xml"
+        ]
+        
+        for sitemap_url in common_sitemaps:
+            try:
+                response = requests.head(sitemap_url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    sitemap_urls.append(sitemap_url)
+                    break  # Found one, no need to check others
+            except Exception:
+                continue
+    
+    return sitemap_urls
+
+def extract_urls_from_sitemap(sitemap_url: str, headers: dict) -> list[str]:
+    """
+    Extract URLs from a sitemap, handling nested sitemaps.
+    """
+    urls = []
+    
+    try:
+        response = requests.get(sitemap_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Parse XML
+        root = ET.fromstring(response.content)
+        
+        # Check if this is a sitemap index or a regular sitemap
+        if root.tag.endswith('sitemapindex'):
+            # This is a sitemap index - find child sitemaps
+            print(f"Parsing sitemap index: {sitemap_url}")
+            child_sitemaps = []
+            
+            for child in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap'):
+                loc = child.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
+                if loc is not None:
+                    child_url = loc.text.strip()
+                    # Prioritize sitemaps that likely contain recipes
+                    if any(keyword in child_url.lower() for keyword in ['post', 'recipe', 'item', 'page']):
+                        child_sitemaps.insert(0, child_url)  # High priority
+                    else:
+                        child_sitemaps.append(child_url)
+            
+            # Recursively extract from child sitemaps
+            for child_sitemap in child_sitemaps[:10]:  # Limit to prevent infinite loops
+                child_urls = extract_urls_from_sitemap(child_sitemap, headers)
+                urls.extend(child_urls)
+                
+        elif root.tag.endswith('urlset'):
+            # This is a regular sitemap with URLs
+            print(f"Parsing URL sitemap: {sitemap_url}")
+            for url in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
+                loc = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
+                if loc is not None:
+                    urls.append(loc.text.strip())
+        
+    except Exception as e:
+        print(f"Error parsing sitemap {sitemap_url}: {e}")
+    
+    return urls
+
+def extract_recipe_info_with_validation(url: str, headers: dict) -> dict:
+    """
+    Extract recipe information with schema validation.
+    """
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Find recipe links
+        # Step 1: Check for Recipe schema validation
+        if not has_recipe_schema(soup):
+            return None  # Not a recipe page
+        
+        # Step 2: Extract recipe information
+        name = extract_recipe_name(soup)
+        time_info = extract_cooking_time(soup)
+        ingredient_count = extract_ingredient_count(soup)
+        benefit = determine_recipe_benefit(soup, name)
+        
+        return {
+            'name': name,
+            'url': url,
+            'time': time_info,
+            'ingredients': ingredient_count,
+            'benefit': benefit
+        }
+        
+    except Exception as e:
+        print(f"Error extracting recipe info from {url}: {e}")
+        return None
+
+def has_recipe_schema(soup: BeautifulSoup) -> bool:
+    """
+    Check if the page contains Recipe schema data.
+    """
+    # Look for application/ld+json scripts
+    scripts = soup.find_all('script', type='application/ld+json')
+    
+    for script in scripts:
+        try:
+            import json
+            data = json.loads(script.string)
+            
+            # Handle single schema or array of schemas
+            if isinstance(data, list):
+                schemas = data
+            else:
+                schemas = [data]
+            
+            for schema in schemas:
+                if schema.get('@type') == 'Recipe':
+                    return True
+                
+                # Check if Recipe is in a list of types
+                schema_type = schema.get('@type')
+                if isinstance(schema_type, list) and 'Recipe' in schema_type:
+                    return True
+                    
+        except Exception:
+            continue
+    
+    return False
+
+def fallback_homepage_scraping(base_url: str, max_recipes: int, headers: dict) -> list[dict]:
+    """
+    Fallback method: scrape from homepage if no sitemap found.
+    """
+    try:
+        response = requests.get(base_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
         recipe_links = find_recipe_links(soup, base_url)
         
         recipes = []
         for link in recipe_links[:max_recipes]:
             try:
-                recipe = extract_recipe_info(link, headers)
+                recipe = extract_recipe_info_with_validation(link, headers)
                 if recipe:
                     recipes.append(recipe)
-                    time.sleep(1)  # Be respectful to the server
+                time.sleep(1)
             except Exception as e:
-                print(f"Error scraping {link}: {e}")
                 continue
                 
         return recipes
         
     except Exception as e:
-        print(f"Error scraping website {base_url}: {e}")
+        print(f"Error in fallback scraping: {e}")
         return []
 
 def find_recipe_links(soup: BeautifulSoup, base_url: str) -> list[str]:
