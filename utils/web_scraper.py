@@ -180,10 +180,21 @@ def extract_recipe_info_with_validation(url: str, headers: dict) -> dict:
         
         # Step 1: Check for Recipe schema validation
         if not has_recipe_schema(soup):
+            print(f"No recipe schema found on {url}")
             return None  # Not a recipe page
         
         # Step 2: Extract recipe information
         name = extract_recipe_name(soup)
+        if name == "Unknown Recipe":
+            print(f"Could not extract recipe name from {url}")
+            # Debug: show available titles
+            title_tag = soup.find('title')
+            if title_tag:
+                print(f"  Page title: {title_tag.get_text()}")
+            h1_tag = soup.find('h1')
+            if h1_tag:
+                print(f"  H1 content: {h1_tag.get_text()}")
+        
         time_info = extract_cooking_time(soup)
         ingredient_count = extract_ingredient_count(soup)
         benefit = determine_recipe_benefit(soup, name)
@@ -372,9 +383,14 @@ def extract_recipe_info(url: str, headers: dict) -> dict:
 
 def extract_recipe_name(soup: BeautifulSoup) -> str:
     """
-    Extract recipe name, filtering out generic titles.
+    Extract recipe name with multiple fallback methods.
     """
-    # Try different selectors for recipe titles
+    # Method 1: Try to extract from Recipe schema first
+    schema_name = extract_name_from_schema(soup)
+    if schema_name and is_valid_recipe_name(schema_name):
+        return schema_name
+    
+    # Method 2: Try various HTML selectors
     selectors = [
         'h1',
         '.recipe-title',
@@ -382,28 +398,129 @@ def extract_recipe_name(soup: BeautifulSoup) -> str:
         '.post-title',
         '[itemprop="name"]',
         '.recipe-name',
-        '.title'
+        '.title',
+        'h2',
+        '.post-title entry-title',
+        '.recipe-title h1',
+        '.entry-content h1',
+        '.recipe h1',
+        '.wp-block-post-title',
+        '.elementor-heading-title'
     ]
     
     for selector in selectors:
         element = soup.select_one(selector)
         if element:
             name = element.get_text().strip()
-            # Filter out generic names
+            # Clean up the name
+            name = clean_recipe_name(name)
             if is_valid_recipe_name(name):
                 return name
     
-    # Fallback: try to extract from page title
+    # Method 3: Try to extract from page title
     title_tag = soup.find('title')
     if title_tag:
         title = title_tag.get_text().strip()
         # Remove common suffixes
         title = re.sub(r'\s*[-|]\s*.+$', '', title)  # Remove "| Site Name" 
         title = re.sub(r'\s*Recipe$', '', title, flags=re.IGNORECASE)
+        title = re.sub(r'\s*\-.*$', '', title)  # Remove " - anything"
+        title = clean_recipe_name(title)
         if is_valid_recipe_name(title):
             return title
     
+    # Method 4: Try to find recipe name in URL path
+    url_element = soup.find('link', rel='canonical')
+    if url_element:
+        url = url_element.get('href', '')
+        name_from_url = extract_name_from_url(url)
+        if name_from_url:
+            return name_from_url
+    
     return "Unknown Recipe"
+
+def extract_name_from_schema(soup: BeautifulSoup) -> str:
+    """
+    Extract recipe name from JSON-LD schema.
+    """
+    scripts = soup.find_all('script', type='application/ld+json')
+    
+    for script in scripts:
+        try:
+            import json
+            data = json.loads(script.string)
+            
+            # Handle single schema or array of schemas
+            if isinstance(data, list):
+                schemas = data
+            else:
+                schemas = [data]
+            
+            for schema in schemas:
+                if schema.get('@type') == 'Recipe':
+                    name = schema.get('name')
+                    if name and isinstance(name, str):
+                        return name.strip()
+                
+                # Check if Recipe is in a list of types
+                schema_type = schema.get('@type')
+                if isinstance(schema_type, list) and 'Recipe' in schema_type:
+                    name = schema.get('name')
+                    if name and isinstance(name, str):
+                        return name.strip()
+                        
+        except Exception:
+            continue
+    
+    return None
+
+def clean_recipe_name(name: str) -> str:
+    """
+    Clean up recipe name by removing common artifacts.
+    """
+    if not name:
+        return name
+    
+    # Remove common prefixes/suffixes
+    name = re.sub(r'^Recipe:\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\s*Recipe$', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^How to Make\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^Easy\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^Simple\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^Quick\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^Homemade\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^Best\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'^Perfect\s*', '', name, flags=re.IGNORECASE)
+    
+    # Remove extra whitespace
+    name = re.sub(r'\s+', ' ', name).strip()
+    
+    # Remove common suffixes
+    name = re.sub(r'\s*\|.*$', '', name)  # Remove "| anything"
+    name = re.sub(r'\s*-.*$', '', name)   # Remove "- anything"
+    
+    return name
+
+def extract_name_from_url(url: str) -> str:
+    """
+    Extract recipe name from URL path.
+    """
+    try:
+        parsed = urlparse(url)
+        path = parsed.path.strip('/')
+        
+        # Split path and get the last segment
+        segments = path.split('/')
+        if segments:
+            last_segment = segments[-1]
+            # Convert hyphens to spaces and capitalize
+            name = last_segment.replace('-', ' ').replace('_', ' ')
+            name = ' '.join(word.capitalize() for word in name.split())
+            return name
+    except Exception:
+        pass
+    
+    return None
 
 def is_valid_recipe_name(name: str) -> bool:
     """
