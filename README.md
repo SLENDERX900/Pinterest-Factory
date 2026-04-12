@@ -1,6 +1,6 @@
 # Pinterest Factory
 
-A Streamlit-powered dashboard for batch production of Pinterest pins from recipe content. This tool automates the creation of compelling pin titles, descriptions, and visual content for nobscooking.com recipes.
+A Streamlit-powered dashboard for batch production of Pinterest pins from recipe content. This tool automates the creation of compelling pin titles, descriptions, and visual content for food blogs and recipe websites.
 
 ## Features
 
@@ -106,7 +106,7 @@ OLLAMA_TIMEOUT=180
 2. **Navigate through the 4-step workflow:**
 
    **Step 1: Batch Intake**
-   - Select 5-10 recipes from the pre-populated website list
+   - Select 5-10 recipes from the pre-populated list (customize with your own recipes)
    - Add custom recipes if needed
    - Lock the batch to proceed
 
@@ -128,7 +128,7 @@ OLLAMA_TIMEOUT=180
 ## Features in Detail
 
 ### Recipe Management
-- Pre-populated with website recipes
+- Pre-populated with example recipes (replace with your own content)
 - Custom recipe entry with URL validation
 - Benefit categorisation (Quick Weeknight, High Protein, Budget Friendly, etc.)
 - Batch locking to prevent accidental changes
@@ -154,10 +154,10 @@ OLLAMA_TIMEOUT=180
 ## Development
 
 ### Adding New Recipes
-Edit `components/intake.py` to add new recipes to the `WEBSITE_RECIPES` list:
+Edit `components/intake.py` to add your own recipes to the recipe list. Replace the example recipes with your actual content:
 
 ```python
-{"name": "Recipe Name", "url": "https://example.com/recipe-slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
+{"name": "Recipe Name", "url": "https://yourwebsite.com/recipe-slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
 ```
 
 ### Customising Pin Templates
@@ -194,12 +194,26 @@ Modify the prompt templates in `components/ai_engine.py` to customise the genera
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## Deployment
+
+### Streamlit Cloud (Recommended)
+1. Push your code to GitHub
+2. Connect your repository to Streamlit Cloud
+3. Configure environment variables in Streamlit Cloud dashboard
+4. Deploy - your app will be live at `https://yourapp.streamlit.app`
+
+### Other Platforms
+- **Heroku**: Use the Streamlit Heroku template
+- **Render**: Deploy as a web service
+- **DigitalOcean**: Use App Platform
+- **Self-hosting**: Run on any server with `streamlit run app.py`
+
 ## Support
 
 For issues and questions:
 - Create an issue on GitHub
-- Contact the nobscooking.com team
 - Check the troubleshooting section above
+- Review Streamlit documentation for deployment guidance
 
 ---
 

@@ -10,7 +10,7 @@ load_dotenv()
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Pinterest Factory · nobscooking.com",
+    page_title="Pinterest Factory · Recipe Content Tool",
     page_icon="📌",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -34,7 +34,7 @@ st.markdown(
     """
     <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px">
         <span style="font-size:26px;font-weight:600">📌 Pinterest Factory</span>
-        <span style="font-size:14px;color:#888">nobscooking.com · batch pin production</span>
+        <span style="font-size:14px;color:#888">Recipe Content Tool · batch pin production</span>
     </div>
     """,
     unsafe_allow_html=True,

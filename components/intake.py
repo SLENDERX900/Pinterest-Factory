@@ -21,29 +21,29 @@ BENEFITS = [
     "Custom...",
 ]
 
-NOBSCOOKING_RECIPES = [
-    {"name": "Beef Chili", "url": "https://nobscooking.com/recipes/beef-chili", "time": "1 hr", "ingredients": "10", "benefit": "High Protein"},
-    {"name": "Stovetop Shell Mac and Cheese", "url": "https://nobscooking.com/recipes/mac-and-cheese", "time": "20 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
-    {"name": "Thai Basil Chicken (Pad Krapow)", "url": "https://nobscooking.com/recipes/thai-basil-chicken", "time": "15 mins", "ingredients": "8", "benefit": "Quick Weeknight"},
-    {"name": "Classic French Onion Soup", "url": "https://nobscooking.com/recipes/french-onion-soup", "time": "1 hr 25 mins", "ingredients": "7", "benefit": "Date Night"},
-    {"name": "Spicy Korean Cucumber Kimchi", "url": "https://nobscooking.com/recipes/korean-cucumber-kimchi", "time": "10 mins", "ingredients": "5", "benefit": "Vegan"},
-    {"name": "Crispy Black Bean Tacos", "url": "https://nobscooking.com/recipes/black-bean-tacos", "time": "15 mins", "ingredients": "7", "benefit": "Budget Friendly"},
-    {"name": "15-Minute Garlic Butter Pasta", "url": "https://nobscooking.com/recipes/garlic-butter-pasta", "time": "15 mins", "ingredients": "5", "benefit": "Quick Weeknight"},
-    {"name": "Overnight Oats", "url": "https://nobscooking.com/recipes/overnight-oats", "time": "5 mins", "ingredients": "4", "benefit": "Meal Prep"},
-    {"name": "Butter Chicken", "url": "https://nobscooking.com/recipes/butter-chicken", "time": "40 mins", "ingredients": "12", "benefit": "Comfort Food"},
-    {"name": "Roasted Tomato Soup", "url": "https://nobscooking.com/recipes/roasted-tomato-soup", "time": "50 mins", "ingredients": "7", "benefit": "Vegetarian"},
-    {"name": "Crispy Skin Chicken Thighs", "url": "https://nobscooking.com/recipes/crispy-chicken-thighs", "time": "40 mins", "ingredients": "5", "benefit": "High Protein"},
-    {"name": "Classic Greek Salad", "url": "https://nobscooking.com/recipes/greek-salad", "time": "10 mins", "ingredients": "7", "benefit": "Healthy"},
-    {"name": "One-Bowl Banana Bread", "url": "https://nobscooking.com/recipes/banana-bread", "time": "1 hr 5 mins", "ingredients": "8", "benefit": "Comfort Food"},
-    {"name": "Pad Thai", "url": "https://nobscooking.com/recipes/pad-thai", "time": "25 mins", "ingredients": "10", "benefit": "Quick Weeknight"},
-    {"name": "Chicken Tortilla Soup", "url": "https://nobscooking.com/recipes/chicken-tortilla-soup", "time": "35 mins", "ingredients": "11", "benefit": "Comfort Food"},
-    {"name": "Honey Garlic Shrimp", "url": "https://nobscooking.com/recipes/honey-garlic-shrimp", "time": "12 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
-    {"name": "Smashed Cucumber Salad", "url": "https://nobscooking.com/recipes/smashed-cucumber-salad", "time": "10 mins", "ingredients": "5", "benefit": "Vegan"},
-    {"name": "Spicy Peanut Noodles", "url": "https://nobscooking.com/recipes/spicy-peanut-noodles", "time": "18 mins", "ingredients": "8", "benefit": "Vegan"},
-    {"name": "One-Pan Shakshuka", "url": "https://nobscooking.com/recipes/one-pan-shakshuka", "time": "25 mins", "ingredients": "8", "benefit": "One Pan"},
-    {"name": "Miso Glazed Salmon", "url": "https://nobscooking.com/recipes/miso-glazed-salmon", "time": "17 mins", "ingredients": "5", "benefit": "High Protein"},
-    {"name": "Sesame Soy Edamame", "url": "https://nobscooking.com/recipes/sesame-soy-edamame", "time": "7 mins", "ingredients": "4", "benefit": "Healthy"},
-    {"name": "2-Minute Chocolate Mug Cake", "url": "https://nobscooking.com/recipes/chocolate-mug-cake", "time": "3 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
+EXAMPLE_RECIPES = [
+    {"name": "Beef Chili", "url": "https://example.com/recipes/beef-chili", "time": "1 hr", "ingredients": "10", "benefit": "High Protein"},
+    {"name": "Stovetop Mac and Cheese", "url": "https://example.com/recipes/mac-and-cheese", "time": "20 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
+    {"name": "Thai Basil Chicken", "url": "https://example.com/recipes/thai-basil-chicken", "time": "15 mins", "ingredients": "8", "benefit": "Quick Weeknight"},
+    {"name": "French Onion Soup", "url": "https://example.com/recipes/french-onion-soup", "time": "1 hr 25 mins", "ingredients": "7", "benefit": "Date Night"},
+    {"name": "Korean Cucumber Kimchi", "url": "https://example.com/recipes/korean-cucumber-kimchi", "time": "10 mins", "ingredients": "5", "benefit": "Vegan"},
+    {"name": "Black Bean Tacos", "url": "https://example.com/recipes/black-bean-tacos", "time": "15 mins", "ingredients": "7", "benefit": "Budget Friendly"},
+    {"name": "Garlic Butter Pasta", "url": "https://example.com/recipes/garlic-butter-pasta", "time": "15 mins", "ingredients": "5", "benefit": "Quick Weeknight"},
+    {"name": "Overnight Oats", "url": "https://example.com/recipes/overnight-oats", "time": "5 mins", "ingredients": "4", "benefit": "Meal Prep"},
+    {"name": "Butter Chicken", "url": "https://example.com/recipes/butter-chicken", "time": "40 mins", "ingredients": "12", "benefit": "Comfort Food"},
+    {"name": "Roasted Tomato Soup", "url": "https://example.com/recipes/roasted-tomato-soup", "time": "50 mins", "ingredients": "7", "benefit": "Vegetarian"},
+    {"name": "Crispy Chicken Thighs", "url": "https://example.com/recipes/crispy-chicken-thighs", "time": "40 mins", "ingredients": "5", "benefit": "High Protein"},
+    {"name": "Greek Salad", "url": "https://example.com/recipes/greek-salad", "time": "10 mins", "ingredients": "7", "benefit": "Healthy"},
+    {"name": "Banana Bread", "url": "https://example.com/recipes/banana-bread", "time": "1 hr 5 mins", "ingredients": "8", "benefit": "Comfort Food"},
+    {"name": "Pad Thai", "url": "https://example.com/recipes/pad-thai", "time": "25 mins", "ingredients": "10", "benefit": "Quick Weeknight"},
+    {"name": "Chicken Tortilla Soup", "url": "https://example.com/recipes/chicken-tortilla-soup", "time": "35 mins", "ingredients": "11", "benefit": "Comfort Food"},
+    {"name": "Honey Garlic Shrimp", "url": "https://example.com/recipes/honey-garlic-shrimp", "time": "12 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
+    {"name": "Cucumber Salad", "url": "https://example.com/recipes/cucumber-salad", "time": "10 mins", "ingredients": "5", "benefit": "Vegan"},
+    {"name": "Peanut Noodles", "url": "https://example.com/recipes/peanut-noodles", "time": "18 mins", "ingredients": "8", "benefit": "Vegan"},
+    {"name": "Shakshuka", "url": "https://example.com/recipes/shakshuka", "time": "25 mins", "ingredients": "8", "benefit": "One Pan"},
+    {"name": "Miso Salmon", "url": "https://example.com/recipes/miso-salmon", "time": "17 mins", "ingredients": "5", "benefit": "High Protein"},
+    {"name": "Sesame Edamame", "url": "https://example.com/recipes/sesame-edamame", "time": "7 mins", "ingredients": "4", "benefit": "Healthy"},
+    {"name": "Chocolate Mug Cake", "url": "https://example.com/recipes/chocolate-mug-cake", "time": "3 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
 ]
 
 
@@ -91,12 +91,12 @@ def render_intake():
         st.session_state.ai_generated = False
         st.success(f"Loaded {len(selections)} recipe(s) into the form.")
 
-    # Quick-load from nobscooking.com
-    with st.expander("⚡ Quick-load from nobscooking.com (22 recipes)", expanded=False):
+    # Quick-load from example recipes
+    with st.expander("⚡ Quick-load from example recipes (22 recipes)", expanded=False):
         st.caption("Select recipes to pre-fill the form instantly.")
 
         # Filter by benefit
-        benefits_available = sorted(set(r["benefit"] for r in NOBSCOOKING_RECIPES))
+        benefits_available = sorted(set(r["benefit"] for r in EXAMPLE_RECIPES))
         selected_filter = st.multiselect(
             "Filter by tag",
             options=benefits_available,
@@ -105,8 +105,8 @@ def render_intake():
         )
 
         filtered = (
-            [r for r in NOBSCOOKING_RECIPES if r["benefit"] in selected_filter]
-            if selected_filter else NOBSCOOKING_RECIPES
+            [r for r in EXAMPLE_RECIPES if r["benefit"] in selected_filter]
+            if selected_filter else EXAMPLE_RECIPES
         )
 
         cols = st.columns(3)

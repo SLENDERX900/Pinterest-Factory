@@ -77,7 +77,7 @@ def generate_hooks(recipe: dict, model: str = None) -> dict[str, str]:
     ingredients = recipe.get("ingredients", "")
     benefit = recipe.get("benefit", "")
 
-    prompt = f"""You are writing Pinterest pin text for nobscooking.com — a no-BS recipe site. Recipes are direct, technical, zero fluff.
+    prompt = f"""You are writing Pinterest pin text for a recipe website. Recipes are direct, technical, zero fluff.
 
 Recipe: {name}
 Cook time: {time}
