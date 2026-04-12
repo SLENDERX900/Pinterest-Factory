@@ -4,6 +4,7 @@ Dynamic form for entering 5–10 recipes. Saves to st.session_state on lock.
 """
 
 import streamlit as st
+from utils.web_scraper import scrape_recipes_from_website, validate_url
 
 BENEFITS = [
     "Quick Weeknight",
@@ -21,30 +22,7 @@ BENEFITS = [
     "Custom...",
 ]
 
-EXAMPLE_RECIPES = [
-    {"name": "Beef Chili", "url": "https://example.com/recipes/beef-chili", "time": "1 hr", "ingredients": "10", "benefit": "High Protein"},
-    {"name": "Stovetop Mac and Cheese", "url": "https://example.com/recipes/mac-and-cheese", "time": "20 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
-    {"name": "Thai Basil Chicken", "url": "https://example.com/recipes/thai-basil-chicken", "time": "15 mins", "ingredients": "8", "benefit": "Quick Weeknight"},
-    {"name": "French Onion Soup", "url": "https://example.com/recipes/french-onion-soup", "time": "1 hr 25 mins", "ingredients": "7", "benefit": "Date Night"},
-    {"name": "Korean Cucumber Kimchi", "url": "https://example.com/recipes/korean-cucumber-kimchi", "time": "10 mins", "ingredients": "5", "benefit": "Vegan"},
-    {"name": "Black Bean Tacos", "url": "https://example.com/recipes/black-bean-tacos", "time": "15 mins", "ingredients": "7", "benefit": "Budget Friendly"},
-    {"name": "Garlic Butter Pasta", "url": "https://example.com/recipes/garlic-butter-pasta", "time": "15 mins", "ingredients": "5", "benefit": "Quick Weeknight"},
-    {"name": "Overnight Oats", "url": "https://example.com/recipes/overnight-oats", "time": "5 mins", "ingredients": "4", "benefit": "Meal Prep"},
-    {"name": "Butter Chicken", "url": "https://example.com/recipes/butter-chicken", "time": "40 mins", "ingredients": "12", "benefit": "Comfort Food"},
-    {"name": "Roasted Tomato Soup", "url": "https://example.com/recipes/roasted-tomato-soup", "time": "50 mins", "ingredients": "7", "benefit": "Vegetarian"},
-    {"name": "Crispy Chicken Thighs", "url": "https://example.com/recipes/crispy-chicken-thighs", "time": "40 mins", "ingredients": "5", "benefit": "High Protein"},
-    {"name": "Greek Salad", "url": "https://example.com/recipes/greek-salad", "time": "10 mins", "ingredients": "7", "benefit": "Healthy"},
-    {"name": "Banana Bread", "url": "https://example.com/recipes/banana-bread", "time": "1 hr 5 mins", "ingredients": "8", "benefit": "Comfort Food"},
-    {"name": "Pad Thai", "url": "https://example.com/recipes/pad-thai", "time": "25 mins", "ingredients": "10", "benefit": "Quick Weeknight"},
-    {"name": "Chicken Tortilla Soup", "url": "https://example.com/recipes/chicken-tortilla-soup", "time": "35 mins", "ingredients": "11", "benefit": "Comfort Food"},
-    {"name": "Honey Garlic Shrimp", "url": "https://example.com/recipes/honey-garlic-shrimp", "time": "12 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
-    {"name": "Cucumber Salad", "url": "https://example.com/recipes/cucumber-salad", "time": "10 mins", "ingredients": "5", "benefit": "Vegan"},
-    {"name": "Peanut Noodles", "url": "https://example.com/recipes/peanut-noodles", "time": "18 mins", "ingredients": "8", "benefit": "Vegan"},
-    {"name": "Shakshuka", "url": "https://example.com/recipes/shakshuka", "time": "25 mins", "ingredients": "8", "benefit": "One Pan"},
-    {"name": "Miso Salmon", "url": "https://example.com/recipes/miso-salmon", "time": "17 mins", "ingredients": "5", "benefit": "High Protein"},
-    {"name": "Sesame Edamame", "url": "https://example.com/recipes/sesame-edamame", "time": "7 mins", "ingredients": "4", "benefit": "Healthy"},
-    {"name": "Chocolate Mug Cake", "url": "https://example.com/recipes/chocolate-mug-cake", "time": "3 mins", "ingredients": "6", "benefit": "Quick Weeknight"},
-]
+# Web scraping will populate recipes dynamically
 
 
 def render_intake():
@@ -91,32 +69,85 @@ def render_intake():
         st.session_state.ai_generated = False
         st.success(f"Loaded {len(selections)} recipe(s) into the form.")
 
-    # Quick-load from example recipes
-    with st.expander("⚡ Quick-load from example recipes (22 recipes)", expanded=False):
-        st.caption("Select recipes to pre-fill the form instantly.")
-
-        # Filter by benefit
-        benefits_available = sorted(set(r["benefit"] for r in EXAMPLE_RECIPES))
-        selected_filter = st.multiselect(
-            "Filter by tag",
-            options=benefits_available,
-            default=[],
-            key="quick_filter",
+    # Web scraping interface
+    with st.expander("🌐 Scrape Recipes from Website", expanded=True):
+        st.caption("Enter your food blog URL to automatically extract recipe information.")
+        
+        # Website URL input
+        website_url = st.text_input(
+            "Website URL",
+            placeholder="https://yourfoodblog.com",
+            help="Enter the main URL of your food blog or recipe website"
         )
-
-        filtered = (
-            [r for r in EXAMPLE_RECIPES if r["benefit"] in selected_filter]
-            if selected_filter else EXAMPLE_RECIPES
-        )
-
-        cols = st.columns(3)
-        quick_selections = []
-        for i, r in enumerate(filtered):
-            col = cols[i % 3]
-            if col.checkbox(f"{r['name']} · {r['time']}", key=f"ql_{r['name']}"):
-                quick_selections.append(r)
-
-        st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
+        
+        # Scrape button
+        if st.button("🔍 Scrape Recipes", disabled=not website_url):
+            if validate_url(website_url):
+                with st.spinner("Scraping recipes from website..."):
+                    scraped_recipes = scrape_recipes_from_website(website_url, max_recipes=30)
+                    
+                    if scraped_recipes:
+                        st.success(f"Found {len(scraped_recipes)} recipes!")
+                        
+                        # Store scraped recipes in session state
+                        st.session_state.scraped_recipes = scraped_recipes
+                        
+                        # Show scraped recipes
+                        st.subheader("Scraped Recipes")
+                        
+                        # Filter by benefit
+                        if scraped_recipes:
+                            benefits_available = sorted(set(r["benefit"] for r in scraped_recipes))
+                            selected_filter = st.multiselect(
+                                "Filter by benefit",
+                                options=benefits_available,
+                                default=[],
+                                key="scraped_filter",
+                            )
+                            
+                            filtered = (
+                                [r for r in scraped_recipes if r["benefit"] in selected_filter]
+                                if selected_filter else scraped_recipes
+                            )
+                            
+                            cols = st.columns(3)
+                            quick_selections = []
+                            for i, r in enumerate(filtered):
+                                col = cols[i % 3]
+                                if col.checkbox(f"{r['name']} · {r['time']}", key=f"scraped_{r['name']}"):
+                                    quick_selections.append(r)
+                            
+                            st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
+                    else:
+                        st.error("No recipes found. Please check the URL and try again.")
+            else:
+                st.error("Please enter a valid URL.")
+        
+        # Show previously scraped recipes if they exist
+        if "scraped_recipes" in st.session_state and st.session_state.scraped_recipes:
+            st.subheader("Previously Scraped Recipes")
+            
+            benefits_available = sorted(set(r["benefit"] for r in st.session_state.scraped_recipes))
+            selected_filter = st.multiselect(
+                "Filter by benefit",
+                options=benefits_available,
+                default=[],
+                key="prev_scraped_filter",
+            )
+            
+            filtered = (
+                [r for r in st.session_state.scraped_recipes if r["benefit"] in selected_filter]
+                if selected_filter else st.session_state.scraped_recipes
+            )
+            
+            cols = st.columns(3)
+            quick_selections = []
+            for i, r in enumerate(filtered):
+                col = cols[i % 3]
+                if col.checkbox(f"{r['name']} · {r['time']}", key=f"prev_{r['name']}"):
+                    quick_selections.append(r)
+            
+            st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
 
     st.divider()
 

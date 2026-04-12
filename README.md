@@ -4,7 +4,7 @@ A Streamlit-powered dashboard for batch production of Pinterest pins from recipe
 
 ## Features
 
-- **Batch Intake**: Import 5-10 recipes with metadata (URL, cooking time, ingredients, benefits)
+- **Batch Intake**: Automatically scrape recipes from your food blog website or manually enter recipe data
 
 **Live Demo**: https://pinterest-factory-example.streamlit.app/
 
@@ -115,8 +115,9 @@ OLLAMA_TIMEOUT=180
 2. **Navigate through the 4-step workflow:**
 
    **Step 1: Batch Intake**
-   - Select 5-10 recipes from the pre-populated list (customize with your own recipes)
-   - Add custom recipes if needed
+   - Enter your food blog URL to automatically scrape recipe information
+   - Filter and select recipes for your batch
+   - Add custom recipes manually if needed
    - Lock the batch to proceed
 
    **Step 2: AI Copy Engine**
@@ -137,9 +138,10 @@ OLLAMA_TIMEOUT=180
 ## Features in Detail
 
 ### Recipe Management
-- Pre-populated with example recipes (replace with your own content)
+- Automatic web scraping from food blog websites
+- Intelligent recipe extraction (name, time, ingredients, benefits)
 - Custom recipe entry with URL validation
-- Benefit categorisation (Quick Weeknight, High Protein, Budget Friendly, etc.)
+- Benefit categorization (Quick Weeknight, High Protein, Budget Friendly, etc.)
 - Batch locking to prevent accidental changes
 
 ### AI-Powered Copy Generation
@@ -162,10 +164,18 @@ OLLAMA_TIMEOUT=180
 
 ## Development
 
-### Adding New Recipes
-Edit `components/intake.py` to add your own recipes to the recipe list. Replace the example recipes with your actual content:
+### Web Scraping Features
+The app automatically extracts recipe information from food blog websites:
+- **Recipe Detection**: Finds recipe links using common URL patterns
+- **Data Extraction**: Extracts recipe names, cooking times, ingredient counts, and benefits
+- **Smart Categorization**: Automatically categorizes recipes based on content analysis
+- **Respectful Scraping**: Includes rate limiting to avoid overwhelming servers
+
+### Manual Recipe Entry
+You can still add recipes manually if web scraping doesn't find all your content:
 
 ```python
+# Manual entry format (for reference)
 {"name": "Recipe Name", "url": "https://yourwebsite.com/recipe-slug", "time": "XX mins", "ingredients": "X", "benefit": "Category"},
 ```
 
