@@ -5,8 +5,17 @@ A Streamlit-powered dashboard for batch production of Pinterest pins from recipe
 ## Features
 
 - **Batch Intake**: Import 5-10 recipes with metadata (URL, cooking time, ingredients, benefits)
+
+**Live Demo**: https://pinterest-factory-example.streamlit.app/
+
+> **Customization**: Replace `https://example.com/recipes/` URLs in the example recipes with your own website URLs to match your content.
+> 
+> **Note**: The live demo shows the complete UI functionality, but to use the full dashboard you'll need to run Ollama locally for AI features and configure your own Notion API for content synchronization.
+
 - **AI Copy Engine**: Generate multiple hook angles and compelling descriptions using local Ollama models
+
 - **Pin Generation**: Create visually appealing pins with custom typography and layout
+
 - **Notion Sync**: Export generated content to Notion database for content management
 
 ## Tech Stack
