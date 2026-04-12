@@ -162,7 +162,13 @@ def render_intake():
                                 col = cols[i % 3]
                                 # Create unique key using index to avoid duplicates
                                 unique_key = f"scraped_{i}_{hash(r['url']) % 10000}"
-                                if col.checkbox(f"{r['name']} · {r['time']}", key=unique_key):
+                                # Show both prep and cook time if available
+                                time_display = r.get('time', '')
+                                if r.get('prep_time') and r.get('cook_time'):
+                                    time_display = f"Prep: {r['prep_time']}, Cook: {r['cook_time']}"
+                                elif r.get('total_time'):
+                                    time_display = r['total_time']
+                                if col.checkbox(f"{r['name']} · {time_display}", key=unique_key):
                                     quick_selections.append(r)
                             
                             st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
@@ -194,7 +200,13 @@ def render_intake():
                 col = cols[i % 3]
                 # Create unique key using index to avoid duplicates
                 unique_key = f"prev_{i}_{hash(r['url']) % 10000}"
-                if col.checkbox(f"{r['name']} · {r['time']}", key=unique_key):
+                # Show both prep and cook time if available
+                time_display = r.get('time', '')
+                if r.get('prep_time') and r.get('cook_time'):
+                    time_display = f"Prep: {r['prep_time']}, Cook: {r['cook_time']}"
+                elif r.get('total_time'):
+                    time_display = r['total_time']
+                if col.checkbox(f"{r['name']} · {time_display}", key=unique_key):
                     quick_selections.append(r)
             
             st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
