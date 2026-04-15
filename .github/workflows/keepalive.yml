@@ -1,0 +1,24 @@
+name: Keep Streamlit App Awake
+
+on:
+  schedule:
+    # Run every 10 hours (adjust as needed)
+    - cron: '0 */10 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit App
+        run: |
+          # Replace with your actual Streamlit Cloud URL
+          curl -s -o /dev/null -w "%{http_code}" \
+            "https://your-app-name.streamlit.app" \
+            || echo "Ping failed"
+        # Optional: Add health check notification
+      - name: Health Check Notification (Optional)
+        if: failure()
+        run: |
+          echo "Keepalive ping failed at $(date)"
+          # Add webhook/notification here if desired (Discord, Slack, etc.)
