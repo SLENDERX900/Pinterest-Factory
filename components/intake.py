@@ -314,39 +314,11 @@ def render_intake():
 
             
 
-            # Filter by benefit
-
-            benefits_available = sorted(set(r["benefit"] for r in scraped_recipes))
-
-            selected_filter = st.multiselect(
-
-                "Filter by benefit",
-
-                options=benefits_available,
-
-                default=[],
-
-                key="scraped_filter",
-
-            )
-
-            
-
-            filtered = (
-
-                [r for r in scraped_recipes if r["benefit"] in selected_filter]
-
-                if selected_filter else scraped_recipes
-
-            )
-
-            
-
-            # Create selection options
+            # Create selection options from all scraped recipes
 
             recipe_options = {}
 
-            for r in filtered:
+            for r in scraped_recipes:
 
                 time_display = r.get('time', '')
 
@@ -371,8 +343,6 @@ def render_intake():
                 "Select recipes to load",
 
                 options=list(recipe_options.keys()),
-
-                default=st.session_state.get("recipe_multiselect", []),
 
                 key="recipe_multiselect"
 
@@ -402,9 +372,7 @@ def render_intake():
 
                 load_selected(quick_selections)
 
-                # Clear after loading
-
-                st.session_state.recipe_multiselect = []
+                # Clear scraped recipes to hide this section
 
                 st.session_state.scraped_recipes = []
 
