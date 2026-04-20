@@ -290,6 +290,12 @@ def render_intake():
 
                         st.session_state.scraped_recipes = scraped_recipes
 
+                        # Initialize selected recipes tracking
+
+                        if "selected_scraped_recipes" not in st.session_state:
+
+                            st.session_state.selected_scraped_recipes = []
+
                         
 
                         # Show scraped recipes
@@ -330,15 +336,23 @@ def render_intake():
 
                             cols = st.columns(3)
 
+                            # Build selections from session state checkbox values
+
                             quick_selections = []
+
+                            
 
                             for i, r in enumerate(filtered):
 
                                 col = cols[i % 3]
 
-                                # Create unique key using index to avoid duplicates
+                                # Create stable unique key based on URL (not index) so filtering doesn't lose state
 
-                                unique_key = f"scraped_{i}_{hash(r['url']) % 10000}"
+                                url_hash = abs(hash(r['url'])) % 100000
+
+                                unique_key = f"chk_{url_hash}"
+
+                                
 
                                 # Show both prep and cook time if available
 
@@ -352,13 +366,48 @@ def render_intake():
 
                                     time_display = r['total_time']
 
-                                if col.checkbox(f"{r['name']} · {time_display}", key=unique_key):
+                                
+                                # Checkbox - Streamlit automatically stores state in session_state[unique_key]
+
+                                is_checked = col.checkbox(
+
+                                    f"{r['name']} · {time_display}", 
+
+                                    key=unique_key
+
+                                )
+
+                                
+
+                                if is_checked:
 
                                     quick_selections.append(r)
 
                             
 
-                            st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,), key="load_scraped_btn")
+                            # Store current selections in session state
+
+                            st.session_state.selected_scraped_recipes = quick_selections
+
+                            
+
+                            # Enable/disable load button based on selections
+
+                            has_selections = len(quick_selections) > 0
+
+                            
+
+                            if st.button(
+
+                                f"Load {len(quick_selections)} selected into batch" if has_selections else "Load selected into batch",
+
+                                disabled=not has_selections,
+
+                                key="load_scraped_btn"
+
+                            ):
+
+                                load_selected(quick_selections)
 
                     else:
 
