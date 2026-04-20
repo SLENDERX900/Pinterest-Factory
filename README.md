@@ -6,13 +6,15 @@ A Streamlit-powered dashboard for batch production of Pinterest pins from recipe
 
 - **Batch Intake**: Automatically scrape recipes from your food blog website or manually enter recipe data
 
-**Live Demo**: https://pinterest-factory-example.streamlit.app/
+**Live Demo**: https://pinterest-factory.streamlit.app/
 
-> **Customization**: Replace `https://example.com/recipes/` URLs in the example recipes with your own website URLs to match your content.
-> 
-> **Note**: The live demo shows the complete UI functionality, but to use the full dashboard you'll need to run Ollama locally for AI features and configure your own Notion API for content synchronization.
+> **Try it out**: The live demo is fully functional! You can scrape recipes from any food blog and generate AI copy instantly.
+>
+> **Setup required**: Add your `GROQ_API_KEY` to Streamlit Cloud secrets for AI generation (get free credits at https://console.groq.com/keys)
+>
+> **Note**: Notion sync requires your own Notion API token. All other features work out of the box.
 
-- **AI Copy Engine**: Generate multiple hook angles and compelling descriptions using local Ollama models
+- **AI Copy Engine**: Generate multiple hook angles and compelling descriptions using Groq API (fast cloud LLM)
 
 - **Pin Generation**: Create visually appealing pins with custom typography and layout
 
@@ -21,10 +23,10 @@ A Streamlit-powered dashboard for batch production of Pinterest pins from recipe
 ## Tech Stack
 
 - **Frontend**: Streamlit (web interface)
-- **AI**: Ollama (local LLM integration)
+- **AI**: Groq API (cloud LLM with free tier)
+- **Web Scraping**: ultimate-sitemap-parser, recipe-scrapers (600+ sites supported)
 - **Image Processing**: Pillow (PIL)
 - **Data**: Pandas
-- **API**: Requests, BeautifulSoup4
 - **Environment**: python-dotenv
 
 ## Project Structure
@@ -40,7 +42,8 @@ components/               # Tab components
   |-- notion_sync.py     # Step 4: Notion database sync
   |-- export.py          # Export utilities
 utils/                   # Helper utilities
-  |-- ollama_client.py   # Ollama API client
+  |-- web_scraper.py     # Web scraping with sitemap support
+  |-- groq_client.py     # Groq API client for AI generation
 requirements.txt         # Python dependencies
 .env.example            # Environment variables template
 template.png            # Pin design template
@@ -75,12 +78,10 @@ Montserrat/             # Font files for pin design
    # Edit .env with your API keys and configuration
    ```
 
-5. **Install Ollama** (for AI features)
-   ```bash
-   # Follow instructions at https://ollama.ai
-   # Pull required model:
-   ollama pull llama3:8b-instruct-q4_K_M
-   ```
+5. **Get Groq API Key** (for AI features)
+   - Sign up at https://console.groq.com/keys
+   - Create a free API key (includes $5 credits)
+   - Add to your `.env` file
 
 ## Configuration
 
@@ -89,14 +90,13 @@ Montserrat/             # Font files for pin design
 Create a `.env` file based on `.env.example`:
 
 ```env
-# Notion Integration (required for Tab 4)
+# Groq API (required for AI generation - get free credits at https://console.groq.com/keys)
+GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GROQ_MODEL=llama-3.1-8b-instant
+
+# Notion Integration (optional - for Tab 4 sync)
 NOTION_TOKEN=secret_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# Ollama Configuration (optional - defaults work for local install)
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3:8b-instruct-q4_K_M
-OLLAMA_TIMEOUT=180
 ```
 
 ### Notion Setup
@@ -148,7 +148,7 @@ OLLAMA_TIMEOUT=180
 ### AI-Powered Copy Generation
 - Multiple hook angles per recipe (5-7 variations)
 - Compelling descriptions optimised for Pinterest
-- Local Ollama integration for privacy and cost control
+- Groq API integration for fast, high-quality generation
 - Customizable prompts and parameters
 
 ### Visual Pin Design
@@ -196,10 +196,10 @@ Modify the prompt templates in `components/ai_engine.py` to customise the genera
 
 ## Troubleshooting
 
-### Ollama Connection Issues
-- Ensure Ollama is running: `ollama serve`
-- Check model availability: `ollama list`
-- Verify host configuration in `.env`
+### AI Generation Issues
+- Verify your `GROQ_API_KEY` is set correctly in `.env`
+- Check that you have credits at https://console.groq.com/keys
+- The app uses `llama-3.1-8b-instant` model by default
 
 ### Notion Sync Problems
 - Verify integration token is valid
