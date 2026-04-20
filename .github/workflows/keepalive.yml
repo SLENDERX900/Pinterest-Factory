@@ -2,8 +2,8 @@ name: Keep Streamlit App Awake
 
 on:
   schedule:
-    # Run every 10 hours (adjust as needed)
-    - cron: '0 */10 * * *'
+    # Run every 6 hours to prevent app from sleeping
+    - cron: '0 */6 * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -12,13 +12,10 @@ jobs:
     steps:
       - name: Ping Streamlit App
         run: |
-          # Replace with your actual Streamlit Cloud URL
           curl -s -o /dev/null -w "%{http_code}" \
-            "https://your-app-name.streamlit.app" \
+            "https://pinterest-factory.streamlit.app" \
             || echo "Ping failed"
-        # Optional: Add health check notification
-      - name: Health Check Notification (Optional)
+      - name: Health Check Notification
         if: failure()
         run: |
           echo "Keepalive ping failed at $(date)"
-          # Add webhook/notification here if desired (Discord, Slack, etc.)

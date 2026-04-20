@@ -8,7 +8,7 @@ import os
 import json
 import requests
 
-OLLAMA_HOST = "http://localhost:11434"
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3:8b-instruct-q4_K_M")
 TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "180"))
 
