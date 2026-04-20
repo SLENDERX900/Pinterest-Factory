@@ -290,28 +290,6 @@ def render_intake():
 
                         st.session_state.scraped_recipes = scraped_recipes
 
-                        # Initialize selected recipes tracking - use dict for stable state
-
-                        if "selected_recipe_ids" not in st.session_state:
-
-                            st.session_state.selected_recipe_ids = set()
-
-                        
-
-                        def toggle_recipe_selection(url, key):
-
-                            """Callback to toggle recipe selection"""
-
-                            if st.session_state[key]:
-
-                                st.session_state.selected_recipe_ids.add(url)
-
-                            else:
-
-                                st.session_state.selected_recipe_ids.discard(url)
-
-                        
-
                         # Show scraped recipes
 
                         st.subheader("Scraped Recipes")
@@ -350,7 +328,7 @@ def render_intake():
 
                             cols = st.columns(3)
 
-                            # Build current selections from session state
+                            # Build selections by checking widget state AFTER rendering
 
                             quick_selections = []
 
@@ -367,13 +345,6 @@ def render_intake():
                                 unique_key = f"chk_{url_hash}"
 
                                 
-
-                                # Check if this recipe is already selected
-
-                                is_selected = r['url'] in st.session_state.selected_recipe_ids
-
-                                
-
                                 # Show both prep and cook time if available
 
                                 time_display = r.get('time', '')
@@ -387,41 +358,33 @@ def render_intake():
                                     time_display = r['total_time']
 
                                 
-                                # Checkbox with on_change callback
+                                # Simple checkbox - Streamlit manages state automatically
 
-                                is_checked = col.checkbox(
+                                col.checkbox(
 
                                     f"{r['name']} · {time_display}", 
 
-                                    key=unique_key,
-
-                                    value=is_selected,
-
-                                    on_change=toggle_recipe_selection,
-
-                                    args=(r['url'], unique_key)
+                                    key=unique_key
 
                                 )
 
                                 
 
-                                # Track if currently checked
+                                # Check if this checkbox is now selected (read from session state)
 
-                                if is_checked or r['url'] in st.session_state.selected_recipe_ids:
+                                if unique_key in st.session_state and st.session_state[unique_key]:
 
                                     quick_selections.append(r)
 
                             
 
-                            # Count unique selections
+                            # Show selection count
 
-                            selected_count = len(st.session_state.selected_recipe_ids)
+                            selected_count = len(quick_selections)
 
                             has_selections = selected_count > 0
 
                             
-
-                            # Show selection count and load button
 
                             st.write(f"**{selected_count} recipes selected**")
 
@@ -437,15 +400,19 @@ def render_intake():
 
                             ):
 
-                                # Get full recipe data for selected URLs
+                                load_selected(quick_selections)
 
-                                selected_recipes = [r for r in scraped_recipes if r['url'] in st.session_state.selected_recipe_ids]
+                                # Clear checkbox states after loading
 
-                                load_selected(selected_recipes)
+                                for r in quick_selections:
 
-                                # Clear selections after loading
+                                    url_hash = abs(hash(r['url'])) % 100000
 
-                                st.session_state.selected_recipe_ids = set()
+                                    key = f"chk_{url_hash}"
+
+                                    if key in st.session_state:
+
+                                        del st.session_state[key]
 
                     else:
 
