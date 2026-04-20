@@ -968,13 +968,18 @@ def is_valid_recipe_name(name: str) -> bool:
     """
     name = name.strip()
 
-    # Exclude generic terms and unknown recipes
+    # Exclude generic terms, unknown recipes, and non-recipe pages
     excluded_terms = [
         'all recipes', 'recipes', 'recipe collection', 'recipe index',
         'category', 'categories', 'archives', 'recent', 'popular',
         'breakfast recipes', 'dinner ideas', 'lunch recipes',
         'dessert recipes', 'snack recipes', 'main dishes',
-        'unknown recipe', 'unknown', 'untitled', 'no title'
+        'unknown recipe', 'unknown', 'untitled', 'no title',
+        'nutrition facts', 'nutrition', 'calories', 'calorie info',
+        'privacy policy', 'terms of service', 'about us', 'contact us',
+        'faq', 'help', 'how to', 'guide', 'tutorial', 'tips',
+        'meal plan', 'grocery list', 'shopping list', 'equipment',
+        'substitutions', 'conversions', 'chart', 'table'
     ]
 
     name_lower = name.lower()
