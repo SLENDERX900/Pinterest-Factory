@@ -326,26 +326,11 @@ def render_intake():
 
                             
 
-                            cols = st.columns(3)
+                            # Create selection options with recipe names and times
 
-                            # Build selections by checking widget state AFTER rendering
+                            recipe_options = {}
 
-                            quick_selections = []
-
-                            
-
-                            for i, r in enumerate(filtered):
-
-                                col = cols[i % 3]
-
-                                # Create stable unique key based on URL
-
-                                url_hash = abs(hash(r['url'])) % 100000
-
-                                unique_key = f"chk_{url_hash}"
-
-                                
-                                # Show both prep and cook time if available
+                            for r in filtered:
 
                                 time_display = r.get('time', '')
 
@@ -358,31 +343,37 @@ def render_intake():
                                     time_display = r['total_time']
 
                                 
-                                # Simple checkbox - Streamlit manages state automatically
+                                label = f"{r['name']} · {time_display}"
 
-                                col.checkbox(
+                                recipe_options[label] = r
 
-                                    f"{r['name']} · {time_display}", 
+                            
 
-                                    key=unique_key
+                            # Multiselect for stable selection (no checkbox reset issues)
 
-                                )
+                            selected_labels = st.multiselect(
 
-                                
+                                "Select recipes to load",
 
-                                # Check if this checkbox is now selected (read from session state)
+                                options=list(recipe_options.keys()),
 
-                                if unique_key in st.session_state and st.session_state[unique_key]:
+                                default=[],
 
-                                    quick_selections.append(r)
+                                key="recipe_multiselect"
+
+                            )
+
+                            
+
+                            # Get full recipe data from selections
+
+                            quick_selections = [recipe_options[label] for label in selected_labels]
 
                             
 
                             # Show selection count
 
                             selected_count = len(quick_selections)
-
-                            has_selections = selected_count > 0
 
                             
 
@@ -394,7 +385,7 @@ def render_intake():
 
                                 "Load selected into batch",
 
-                                disabled=not has_selections,
+                                disabled=selected_count == 0,
 
                                 key="load_scraped_btn"
 
@@ -402,17 +393,9 @@ def render_intake():
 
                                 load_selected(quick_selections)
 
-                                # Clear checkbox states after loading
+                                # Clear multiselect after loading
 
-                                for r in quick_selections:
-
-                                    url_hash = abs(hash(r['url'])) % 100000
-
-                                    key = f"chk_{url_hash}"
-
-                                    if key in st.session_state:
-
-                                        del st.session_state[key]
+                                st.session_state.recipe_multiselect = []
 
                     else:
 
