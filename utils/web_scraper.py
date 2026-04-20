@@ -1,6 +1,8 @@
 """
 utils/web_scraper.py
 Web scraping utilities for extracting recipe information from food blog websites.
+Uses ultimate-sitemap-parser for robust sitemap handling and recipe-scrapers for
+accurate recipe extraction from 600+ supported sites.
 """
 
 import requests
@@ -8,7 +10,8 @@ from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin, urlparse
 import time
-import xml.etree.ElementTree as ET
+from usp.tree import sitemap_tree_for_homepage
+from recipe_scrapers import scrape_html
 
 def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[dict]:
     """
@@ -21,58 +24,56 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
     Returns:
         List of recipe dictionaries with name, url, time, ingredients, benefit
     """
+    """
+    Scrape recipes using ultimate-sitemap-parser and recipe-scrapers.
+    Automatically handles nested sitemaps and extracts structured recipe data.
+    """
     try:
-        # Normalize base URL
         base_url = base_url.rstrip('/')
-        parsed = urlparse(base_url)
-        domain = f"{parsed.scheme}://{parsed.netloc}"
+        print(f"Discovering sitemaps for: {base_url}")
         
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        # Step 1: Use ultimate-sitemap-parser to discover and flatten all sitemaps
+        tree = sitemap_tree_for_homepage(base_url)
         
-        print(f"Discovering sitemap for {domain}")
+        # Step 2: Collect all page URLs
+        all_pages = list(tree.all_pages())
+        print(f"Found {len(all_pages)} total pages in sitemaps")
         
-        # Step 1: Discover sitemap
-        sitemap_urls = discover_sitemaps(domain, headers)
-        if not sitemap_urls:
-            print("No sitemap found, falling back to homepage scraping")
+        if not all_pages:
+            print("No pages found in sitemaps, falling back to homepage scraping")
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             return fallback_homepage_scraping(base_url, max_recipes, headers)
         
-        print(f"Found {len(sitemap_urls)} sitemap(s)")
+        # Step 3: Filter for likely recipe URLs
+        recipe_urls = []
+        for page in all_pages:
+            url = page.url
+            # Look for recipe patterns in URL
+            if any(pattern in url.lower() for pattern in ['/recipe', '/recipes/', '/cook/', '/food/', '/dish/', '/meal/']):
+                recipe_urls.append(url)
+            # Also check if URL path looks like a recipe (contains food-related words)
+            elif is_likely_recipe_url(url):
+                recipe_urls.append(url)
         
-        # Step 2: Extract URLs from sitemaps
-        all_urls = []
-        for sitemap_url in sitemap_urls:
-            urls = extract_urls_from_sitemap(sitemap_url, headers)
-            all_urls.extend(urls)
+        print(f"Found {len(recipe_urls)} potential recipe URLs")
         
-        if not all_urls:
-            print("No URLs found in sitemaps")
-            return []
-        
-        print(f"Extracted {len(all_urls)} URLs from sitemaps")
-        
-        # Step 3: Take the most recent URLs (sitemaps are usually ordered by date)
-        recent_urls = all_urls[:max_recipes * 2]  # Get more to account for non-recipes
-        
-        # Step 4: Iterative scraping with recipe validation
+        # Step 4: Extract recipe data using recipe-scrapers
         recipes = []
-        for url in recent_urls:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        
+        for url in recipe_urls[:max_recipes * 3]:  # Try more to get enough valid recipes
             if len(recipes) >= max_recipes:
                 break
-                
+            
             try:
-                recipe = extract_recipe_info_with_validation(url, headers)
-                # Only add if recipe is valid and not "Unknown Recipe"
+                recipe = extract_with_recipe_scrapers(url, headers)
                 if recipe and recipe.get('name') and recipe['name'] != 'Unknown Recipe':
-                    # Additional validation: check if name looks like a recipe
                     if is_valid_recipe_name(recipe['name']):
                         recipes.append(recipe)
                         print(f"✓ Found recipe: {recipe['name']}")
                     else:
-                        print(f"✗ Skipped invalid recipe name: {recipe['name']}")
-                time.sleep(1)  # Be respectful to the server
+                        print(f"✗ Skipped invalid name: {recipe['name']}")
+                time.sleep(0.5)  # Be respectful
             except Exception as e:
                 print(f"Error scraping {url}: {e}")
                 continue
@@ -83,6 +84,189 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
     except Exception as e:
         print(f"Error scraping website {base_url}: {e}")
         return []
+
+def is_likely_recipe_url(url: str) -> bool:
+    """
+    Check if URL path contains food-related words suggesting it's a recipe.
+    """
+    parsed = urlparse(url)
+    path = parsed.path.lower()
+    
+    food_indicators = [
+        'chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 'tofu',
+        'pasta', 'rice', 'noodles', 'soup', 'salad', 'sandwich', 'burger',
+        'pizza', 'taco', 'curry', 'stew', 'roast', 'baked', 'grilled',
+        'cake', 'pie', 'cookie', 'bread', 'muffin', 'pancake', 'waffle',
+        'chocolate', 'vanilla', 'strawberry', 'apple', 'banana',
+        'potato', 'tomato', 'onion', 'garlic', 'cheese', 'egg',
+        'steak', 'lamb', 'turkey', 'duck', 'bacon', 'sausage',
+        'tortilla', 'burrito', 'enchilada', 'quesadilla',
+        'sushi', 'ramen', 'dumpling', 'lasagna', 'risotto',
+        'pho', 'pad-thai', 'hummus', 'falafel', 'shawarma',
+        'smoothie', 'latte', 'cocktail', 'margarita',
+        'avocado', 'mango', 'spinach', 'kale', 'quinoa',
+        'brownie', 'cheesecake', 'tiramisu', 'croissant',
+    ]
+    
+    return any(indicator in path for indicator in food_indicators)
+
+
+def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
+    """
+    Extract recipe data using recipe-scrapers library.
+    Falls back to manual extraction if scraper fails.
+    """
+    try:
+        # Fetch page content
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        html = response.text
+        
+        # Try recipe-scrapers first (supports 600+ sites)
+        try:
+            scraper = scrape_html(html, url)
+            
+            # Extract times
+            prep_time = ""
+            cook_time = ""
+            total_time = ""
+            
+            try:
+                prep_time = format_duration(scraper.prep_time()) if scraper.prep_time() else ""
+            except:
+                pass
+            try:
+                cook_time = format_duration(scraper.cook_time()) if scraper.cook_time() else ""
+            except:
+                pass
+            try:
+                total_time = format_duration(scraper.total_time()) if scraper.total_time() else ""
+            except:
+                pass
+            
+            # Get ingredient count
+            try:
+                ingredients = scraper.ingredients()
+                ingredient_count = len(ingredients)
+            except:
+                ingredient_count = ""
+            
+            # Determine benefit based on recipe data
+            benefit = determine_benefit_from_data(prep_time, cook_time, ingredient_count)
+            
+            return {
+                'name': scraper.title(),
+                'url': url,
+                'prep_time': prep_time,
+                'cook_time': cook_time,
+                'total_time': total_time,
+                'time': total_time if total_time else (cook_time if cook_time else prep_time),
+                'ingredients': str(ingredient_count) if ingredient_count else "",
+                'benefit': benefit,
+            }
+            
+        except Exception as e:
+            # recipe-scrapers failed, fall back to manual extraction
+            print(f"recipe-scrapers failed for {url}, falling back: {e}")
+            return manual_extract_recipe(url, headers, html)
+            
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+
+
+def format_duration(iso_duration: str) -> str:
+    """Convert ISO 8601 duration to readable format."""
+    if not iso_duration:
+        return ""
+    
+    # Parse PT1H30M format
+    match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?', iso_duration)
+    if match:
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        
+        if hours > 0 and minutes > 0:
+            return f"{hours} hr {minutes} mins"
+        elif hours > 0:
+            return f"{hours} hr" if hours == 1 else f"{hours} hrs"
+        else:
+            return f"{minutes} mins"
+    
+    return iso_duration
+
+
+def determine_benefit_from_data(prep_time: str, cook_time: str, ingredient_count) -> str:
+    """Determine recipe benefit based on time and ingredients."""
+    # Quick recipes
+    try:
+        total_minutes = 0
+        if cook_time:
+            match = re.search(r'(\d+)', cook_time)
+            if match:
+                total_minutes += int(match.group(1))
+        
+        if total_minutes <= 20:
+            return "Quick Weeknight"
+        elif total_minutes <= 40:
+            return "Meal Prep"
+    except:
+        pass
+    
+    # Low ingredient count
+    try:
+        if ingredient_count and int(ingredient_count) <= 5:
+            return "Budget Friendly"
+    except:
+        pass
+    
+    return "Quick Weeknight"
+
+
+def manual_extract_recipe(url: str, headers: dict, html: str = None) -> dict:
+    """
+    Manual fallback extraction using BeautifulSoup.
+    """
+    try:
+        if html is None:
+            response = requests.get(url, headers=headers, timeout=10)
+            html = response.text
+        
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Check for recipe schema
+        if not has_recipe_schema(soup):
+            return None
+        
+        # Extract name
+        name = extract_recipe_name(soup)
+        if not name or name == "Unknown Recipe":
+            return None
+        
+        # Extract times
+        prep_time, cook_time, total_time = extract_recipe_times(soup)
+        
+        # Extract ingredient count
+        ingredient_count = extract_ingredient_count(soup)
+        
+        # Determine benefit
+        benefit = determine_recipe_benefit(soup, name)
+        
+        return {
+            'name': name,
+            'url': url,
+            'prep_time': prep_time,
+            'cook_time': cook_time,
+            'total_time': total_time,
+            'time': total_time if total_time else (cook_time if cook_time else prep_time),
+            'ingredients': ingredient_count,
+            'benefit': benefit,
+        }
+        
+    except Exception as e:
+        print(f"Manual extraction failed for {url}: {e}")
+        return None
+
 
 def discover_sitemaps(domain: str, headers: dict) -> list[str]:
     """
