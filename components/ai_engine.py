@@ -1,37 +1,36 @@
 """
 components/ai_engine.py — Tab 2: AI Copy Engine
-Connects to Ollama, generates hooks + descriptions, renders editable text boxes.
+Connects to Groq API, generates hooks + descriptions, renders editable text boxes.
 All output is saved back to st.session_state so edits persist across tabs.
 """
 
 import streamlit as st
-from utils.ollama_client import (
+from utils.groq_client import (
     check_connection,
     generate_hooks,
     generate_description,
     ANGLES,
-    OLLAMA_MODEL,
-    OLLAMA_HOST,
+    GROQ_MODEL,
 )
 
 
 def render_ai_engine():
     st.subheader("AI Copy Engine")
-    st.caption("Generates 5 hooks + 1 SEO description per recipe using local Ollama (Llama 3).")
+    st.caption("Generates 5 hooks + 1 SEO description per recipe using Groq API (Llama 3.1).")
 
-    # ── Ollama connection check ───────────────────────────────────────────────
+    # ── Groq connection check ───────────────────────────────────────────────
     with st.container():
         col_status, col_model = st.columns([3, 1])
         with col_status:
             ok, msg = check_connection()
             if ok:
-                st.success(f"✅ Ollama connected · model: `{msg}`")
+                st.success(f"✅ Groq connected · model: `{msg}`")
             else:
-                st.error(f"❌ Ollama not reachable — {msg}")
-                st.code("ollama serve\nollama pull llama3:8b-instruct-q4_K_M", language="bash")
+                st.error(f"❌ Groq API error — {msg}")
+                st.code("# Add to .env file:\nGROQ_API_KEY=gsk_xxxxxxxxxxxx", language="bash")
                 st.stop()
         with col_model:
-            st.caption(f"Host: `{OLLAMA_HOST}`")
+            st.caption(f"Model: `{GROQ_MODEL}`")
 
     st.divider()
 
@@ -60,7 +59,7 @@ def render_ai_engine():
     with col_info:
         st.caption(
             f"Will generate {len(recipes) * 5} hooks + {len(recipes)} descriptions "
-            f"across {len(recipes)} recipe(s). ~{len(recipes) * 2}–{len(recipes) * 5} min on CPU."
+            f"across {len(recipes)} recipe(s). Fast generation via Groq API."
         )
 
     if regenerate:

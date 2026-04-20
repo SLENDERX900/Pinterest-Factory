@@ -344,7 +344,7 @@ def render_intake():
 
                             
 
-                            st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
+                            st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,), key="load_scraped_btn")
 
                     else:
 
@@ -355,74 +355,6 @@ def render_intake():
                 st.error("Please enter a valid URL.")
 
         
-
-        # Show previously scraped recipes if they exist
-
-        if "scraped_recipes" in st.session_state and st.session_state.scraped_recipes:
-
-            st.subheader("Previously Scraped Recipes")
-
-            
-
-            benefits_available = sorted(set(r["benefit"] for r in st.session_state.scraped_recipes))
-
-            selected_filter = st.multiselect(
-
-                "Filter by benefit",
-
-                options=benefits_available,
-
-                default=[],
-
-                key="prev_scraped_filter",
-
-            )
-
-            
-
-            filtered = (
-
-                [r for r in st.session_state.scraped_recipes if r["benefit"] in selected_filter]
-
-                if selected_filter else st.session_state.scraped_recipes
-
-            )
-
-            
-
-            cols = st.columns(3)
-
-            quick_selections = []
-
-            for i, r in enumerate(filtered):
-
-                col = cols[i % 3]
-
-                # Create unique key using index to avoid duplicates
-
-                unique_key = f"prev_{i}_{hash(r['url']) % 10000}"
-
-                # Show both prep and cook time if available
-
-                time_display = r.get('time', '')
-
-                if r.get('prep_time') and r.get('cook_time'):
-
-                    time_display = f"Prep: {r['prep_time']}, Cook: {r['cook_time']}"
-
-                elif r.get('total_time'):
-
-                    time_display = r['total_time']
-
-                if col.checkbox(f"{r['name']} · {time_display}", key=unique_key):
-
-                    quick_selections.append(r)
-
-            
-
-            st.button("Load selected into batch", disabled=len(quick_selections) == 0, on_click=load_selected, args=(quick_selections,))
-
-
 
     st.divider()
 

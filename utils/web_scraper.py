@@ -64,9 +64,14 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
                 
             try:
                 recipe = extract_recipe_info_with_validation(url, headers)
-                if recipe:
-                    recipes.append(recipe)
-                    print(f"✓ Found recipe: {recipe['name']}")
+                # Only add if recipe is valid and not "Unknown Recipe"
+                if recipe and recipe.get('name') and recipe['name'] != 'Unknown Recipe':
+                    # Additional validation: check if name looks like a recipe
+                    if is_valid_recipe_name(recipe['name']):
+                        recipes.append(recipe)
+                        print(f"✓ Found recipe: {recipe['name']}")
+                    else:
+                        print(f"✗ Skipped invalid recipe name: {recipe['name']}")
                 time.sleep(1)  # Be respectful to the server
             except Exception as e:
                 print(f"Error scraping {url}: {e}")
@@ -775,25 +780,27 @@ def extract_number(text: str) -> str:
 def is_valid_recipe_name(name: str) -> bool:
     """
     Validate that the extracted name is actually a recipe name.
+    Strict validation to ensure only real recipes are returned.
     """
     name = name.strip()
-    
-    # Exclude generic terms
+
+    # Exclude generic terms and unknown recipes
     excluded_terms = [
         'all recipes', 'recipes', 'recipe collection', 'recipe index',
         'category', 'categories', 'archives', 'recent', 'popular',
         'breakfast recipes', 'dinner ideas', 'lunch recipes',
-        'dessert recipes', 'snack recipes', 'main dishes'
+        'dessert recipes', 'snack recipes', 'main dishes',
+        'unknown recipe', 'unknown', 'untitled', 'no title'
     ]
-    
+
     name_lower = name.lower()
     if any(excluded in name_lower for excluded in excluded_terms):
         return False
-    
-    # Must be reasonable length
-    if len(name) < 3 or len(name) > 100:
+
+    # Must be reasonable length (at least 5 chars for real recipe names)
+    if len(name) < 5 or len(name) > 100:
         return False
-    
+
     # Should contain at least one food-related word
     food_words = [
         'chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 'tofu',
@@ -801,9 +808,57 @@ def is_valid_recipe_name(name: str) -> bool:
         'pizza', 'taco', 'curry', 'stew', 'roast', 'baked', 'grilled',
         'cake', 'pie', 'cookie', 'bread', 'muffin', 'pancake', 'waffle',
         'chocolate', 'vanilla', 'strawberry', 'apple', 'banana',
-        'potato', 'tomato', 'onion', 'garlic', 'cheese', 'egg'
+        'potato', 'tomato', 'onion', 'garlic', 'cheese', 'egg',
+        'steak', 'lamb', 'turkey', 'duck', 'bacon', 'sausage',
+        'tortilla', 'burrito', 'enchilada', 'quesadilla', 'tamale',
+        'sushi', 'ramen', 'udon', 'soba', 'dumpling', 'wonton',
+        'lasagna', 'risotto', 'gnocchi', 'polenta', 'frittata',
+        'quiche', 'omelet', 'frittata', 'casserole', 'tagine',
+        'pho', 'pad thai', 'bibimbap', 'kimchi', 'bulgogi',
+        'hummus', 'falafel', 'shawarma', 'kebab', 'korma',
+        'tikka', 'masala', 'biryani', 'dal', 'samosa',
+        'guacamole', 'salsa', 'nachos', 'empanada', 'arepa',
+        'croissant', 'baguette', 'sourdough', 'ciabatta', 'focaccia',
+        'tiramisu', 'panna cotta', 'creme brulee', 'macaron', 'eclair',
+        'brownie', 'blondie', 'truffle', 'fudge', 'bark',
+        'smoothie', 'milkshake', 'latte', 'cappuccino', 'espresso',
+        'margarita', 'mojito', 'martini', 'mimosa', 'sangria',
+        'aioli', 'pesto', 'tapenade', 'chimichurri', 'gremolata',
+        'vinaigrette', 'dressing', 'marinade', 'sauce', 'glaze',
+        'butter', 'cream', 'yogurt', 'milk', 'honey', 'syrup',
+        'cinnamon', 'nutmeg', 'ginger', 'cumin', 'paprika',
+        'basil', 'cilantro', 'parsley', 'thyme', 'rosemary',
+        'oregano', 'sage', 'mint', 'dill', 'tarragon',
+        'avocado', 'mango', 'pineapple', 'coconut', 'lime',
+        'lemon', 'orange', 'grapefruit', 'peach', 'plum',
+        'cherry', 'blueberry', 'raspberry', 'blackberry', 'cranberry',
+        'watermelon', 'cantaloupe', 'honeydew', 'kiwi', 'pomegranate',
+        'asparagus', 'broccoli', 'cauliflower', 'spinach', 'kale',
+        'lettuce', 'cabbage', 'brussels sprout', 'zucchini', 'cucumber',
+        'pepper', 'carrot', 'celery', 'mushroom', 'artichoke',
+        'eggplant', 'squash', 'pumpkin', 'beet', 'radish',
+        'turnip', 'rutabaga', 'parsnip', 'leek', 'scallion',
+        'shallot', 'chive', 'arugula', 'endive', 'radicchio',
+        'fennel', 'okra', 'jicama', 'kohlrabi', 'bok choy',
+        'edamame', 'lentil', 'chickpea', 'bean', 'pea',
+        'quinoa', 'couscous', 'barley', 'oats', 'granola',
+        'cereal', 'granola', 'muesli', 'porridge', 'congee',
+        'oatmeal', 'granola', 'chia', 'flax', 'hemp',
+        'sesame', 'sunflower', 'pumpkin seed', 'pine nut', 'walnut',
+        'almond', 'pecan', 'cashew', 'pistachio', 'macadamia',
+        'hazelnut', 'brazil nut', 'chestnut', 'peanut', 'nut',
+        'tahini', 'miso', 'gochujang', 'harissa', 'berbere',
+        'zaatar', 'dukkah', 'furikake', 'shichimi', 'togarashi',
+        'balsamic', 'vinegar', 'wine', 'brandy', 'whiskey',
+        'rum', 'vodka', 'gin', 'tequila', 'vermouth',
+        'sake', 'mirin', 'shaoxing', 'marsala', 'sherry',
+        'port', 'madeira', 'cognac', 'armagnac', 'grappa',
+        'limoncello', 'amaretto', 'kahlua', 'baileys', 'grand marnier',
+        'cointreau', 'triple sec', 'campari', 'aperol', 'absinthe',
+        ' Chartreuse', 'frangelico', 'sambuca', 'ouzo', 'raki',
+        'pisco', 'cachaça', 'mezcal', 'agave', 'simple syrup'
     ]
-    
+
     return any(food_word in name_lower for food_word in food_words)
 
 def extract_recipe_times(soup: BeautifulSoup) -> tuple[str, str, str]:
