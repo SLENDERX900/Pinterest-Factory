@@ -70,6 +70,10 @@ def render_intake():
 
         st.session_state.recipe_data = []
 
+    if "show_scraper" not in st.session_state:
+
+        st.session_state.show_scraper = True
+
 
 
     # Callback for Clear batch button
@@ -137,6 +141,10 @@ def render_intake():
         st.session_state.ai_generated = False
 
         st.success(f"Loaded {len(selections)} recipe(s) into the form.")
+
+        # Collapse scraper after loading
+
+        st.session_state.show_scraper = False
 
         
 
@@ -232,9 +240,11 @@ def render_intake():
 
 
 
-    # Web scraping interface
+    # Web scraping interface - collapse after loading recipes
 
-    with st.expander("🌐 Scrape Recipes from Website", expanded=True):
+    scraper_expanded = st.session_state.get("show_scraper", True)
+
+    with st.expander("🌐 Scrape Recipes from Website", expanded=scraper_expanded):
 
         st.caption("Enter your food blog URL to automatically extract recipe information.")
 
@@ -269,6 +279,10 @@ def render_intake():
                     if scraped_recipes:
 
                         st.success(f"Found {len(scraped_recipes)} recipes!")
+
+                        # Keep scraper open to show results
+
+                        st.session_state.show_scraper = True
 
                         
 
