@@ -290,112 +290,7 @@ def render_intake():
 
                         st.session_state.scraped_recipes = scraped_recipes
 
-                        # Show scraped recipes
-
-                        st.subheader("Scraped Recipes")
-
-                        
-
-                        # Filter by benefit
-
-                        if scraped_recipes:
-
-                            benefits_available = sorted(set(r["benefit"] for r in scraped_recipes))
-
-                            selected_filter = st.multiselect(
-
-                                "Filter by benefit",
-
-                                options=benefits_available,
-
-                                default=[],
-
-                                key="scraped_filter",
-
-                            )
-
-                            
-
-                            filtered = (
-
-                                [r for r in scraped_recipes if r["benefit"] in selected_filter]
-
-                                if selected_filter else scraped_recipes
-
-                            )
-
-                            
-
-                            # Create selection options with recipe names and times
-
-                            recipe_options = {}
-
-                            for r in filtered:
-
-                                time_display = r.get('time', '')
-
-                                if r.get('prep_time') and r.get('cook_time'):
-
-                                    time_display = f"Prep: {r['prep_time']}, Cook: {r['cook_time']}"
-
-                                elif r.get('total_time'):
-
-                                    time_display = r['total_time']
-
-                                
-                                label = f"{r['name']} · {time_display}"
-
-                                recipe_options[label] = r
-
-                            
-
-                            # Multiselect for stable selection (no checkbox reset issues)
-
-                            selected_labels = st.multiselect(
-
-                                "Select recipes to load",
-
-                                options=list(recipe_options.keys()),
-
-                                default=[],
-
-                                key="recipe_multiselect"
-
-                            )
-
-                            
-
-                            # Get full recipe data from selections
-
-                            quick_selections = [recipe_options[label] for label in selected_labels]
-
-                            
-
-                            # Show selection count
-
-                            selected_count = len(quick_selections)
-
-                            
-
-                            st.write(f"**{selected_count} recipes selected**")
-
-                            
-
-                            if st.button(
-
-                                "Load selected into batch",
-
-                                disabled=selected_count == 0,
-
-                                key="load_scraped_btn"
-
-                            ):
-
-                                load_selected(quick_selections)
-
-                                # Clear multiselect after loading
-
-                                st.session_state.recipe_multiselect = []
+                        st.rerun()  # Rerun to display results outside the button block
 
                     else:
 
@@ -406,6 +301,118 @@ def render_intake():
                 st.error("Please enter a valid URL.")
 
         
+
+        # Display scraped recipes OUTSIDE the button block - persists across reruns
+
+        if "scraped_recipes" in st.session_state and st.session_state.scraped_recipes:
+
+            scraped_recipes = st.session_state.scraped_recipes
+
+            
+
+            st.subheader("Scraped Recipes")
+
+            
+
+            # Filter by benefit
+
+            benefits_available = sorted(set(r["benefit"] for r in scraped_recipes))
+
+            selected_filter = st.multiselect(
+
+                "Filter by benefit",
+
+                options=benefits_available,
+
+                default=[],
+
+                key="scraped_filter",
+
+            )
+
+            
+
+            filtered = (
+
+                [r for r in scraped_recipes if r["benefit"] in selected_filter]
+
+                if selected_filter else scraped_recipes
+
+            )
+
+            
+
+            # Create selection options
+
+            recipe_options = {}
+
+            for r in filtered:
+
+                time_display = r.get('time', '')
+
+                if r.get('prep_time') and r.get('cook_time'):
+
+                    time_display = f"Prep: {r['prep_time']}, Cook: {r['cook_time']}"
+
+                elif r.get('total_time'):
+
+                    time_display = r['total_time']
+
+                label = f"{r['name']} · {time_display}"
+
+                recipe_options[label] = r
+
+            
+
+            # Multiselect for recipe selection
+
+            selected_labels = st.multiselect(
+
+                "Select recipes to load",
+
+                options=list(recipe_options.keys()),
+
+                default=st.session_state.get("recipe_multiselect", []),
+
+                key="recipe_multiselect"
+
+            )
+
+            
+
+            quick_selections = [recipe_options[label] for label in selected_labels]
+
+            selected_count = len(quick_selections)
+
+            
+
+            st.write(f"**{selected_count} recipes selected**")
+
+            
+
+            if st.button(
+
+                "Load selected into batch",
+
+                disabled=selected_count == 0,
+
+                key="load_scraped_btn"
+
+            ):
+
+                load_selected(quick_selections)
+
+                # Clear after loading
+
+                st.session_state.recipe_multiselect = []
+
+                st.session_state.scraped_recipes = []
+
+                st.session_state.show_scraper = False
+
+                st.rerun()
+
+    
 
     st.divider()
 
