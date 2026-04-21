@@ -6,7 +6,7 @@ A Streamlit-powered dashboard for batch production of Pinterest pins from recipe
 
 - **Batch Intake**: Automatically scrape recipes from your food blog website or manually enter recipe data
 
-**Live Demo**: https://pinterest-factory.streamlit.app/
+**Live Demo**: https://pinterest-factory-example.streamlit.app/
 
 > **Try it out**: The live demo is fully functional! You can scrape recipes from any food blog and generate AI copy instantly.
 >

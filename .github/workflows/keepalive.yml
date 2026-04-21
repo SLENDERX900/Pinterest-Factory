@@ -13,7 +13,7 @@ jobs:
       - name: Ping Streamlit App
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
-            "https://pinterest-factory.streamlit.app" \
+            "https://pinterest-factory-example.streamlit.app" \
             || echo "Ping failed"
       - name: Health Check Notification
         if: failure()
