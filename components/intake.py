@@ -323,60 +323,73 @@ def smart_scrape_website(website_url: str):
                 from utils.web_scraper import scrape_recipes_from_urls
                 new_recipes = scrape_recipes_from_urls(new_urls)
             
-            # Show existing recipes for review
+            # Show existing recipes for review and selection
             if existing_urls:
-                st.info(f"📋 Found {len(existing_urls)} existing recipes. Review below for updates:")
+                st.info(f"📋 Found {len(existing_urls)} existing recipes. Select which ones to load:")
                 
-                # Get existing recipes data
+                # Get existing recipes data from current session or scrape them
                 existing_recipes_data = []
+                current_recipes = {r.get('url'): r for r in st.session_state.get('recipes', [])}
+                
                 for url in existing_urls:
-                    if url in existing_recipes:
-                        existing_recipes_data.append(existing_recipes[url])
+                    if url in current_recipes:
+                        existing_recipes_data.append(current_recipes[url])
+                    else:
+                        # Try to get from memory by scraping this URL
+                        try:
+                            recipe_data = scrape_recipes_from_urls([url])
+                            if recipe_data:
+                                existing_recipes_data.extend(recipe_data)
+                        except:
+                            pass
                 
                 if existing_recipes_data:
-                    # Show existing recipes in a table
-                    import pandas as pd
-                    df = pd.DataFrame(existing_recipes_data)
-                    df = df[['name', 'time', 'benefit', 'url']]
-                    df.columns = ['Recipe', 'Time', 'Benefit', 'URL']
-                    st.dataframe(df, width='stretch', hide_index=True)
+                    # Show existing recipes with selection checkboxes
+                    st.subheader("� Select Existing Recipes to Load")
                     
-                    # Allow selective re-scraping
-                    st.subheader("🔄 Select Recipes to Update")
-                    selected_urls = []
-                    for recipe in existing_recipes_data:
+                    selected_existing = []
+                    for i, recipe in enumerate(existing_recipes_data):
                         col1, col2 = st.columns([4, 1])
                         with col1:
-                            st.write(f"**{recipe['name']}** - {recipe['time']}")
+                            # Create a unique key for each checkbox
+                            checkbox_key = f"select_existing_{i}_{hash(recipe.get('url', '')) % 10000}"
+                            selected = st.checkbox(
+                                f"**{recipe.get('name', 'Unknown Recipe')}** - {recipe.get('time', 'No time')}",
+                                key=checkbox_key,
+                                help=f"URL: {recipe.get('url', 'No URL')}"
+                            )
+                            if selected:
+                                selected_existing.append(recipe)
                         with col2:
-                            if st.button("Update", key=f"update_{recipe['url']}"):
-                                selected_urls.append(recipe['url'])
+                            st.write(f"📌 {recipe.get('benefit', 'No benefit')}")
                     
-                    if selected_urls:
-                        st.info(f"🔄 Updating {len(selected_urls)} selected recipes...")
-                        updated_recipes = scrape_recipes_from_urls(selected_urls)
-                        
-                        # Merge all recipes
-                        all_recipes = new_recipes + updated_recipes
-                        st.success(f"✅ Added {len(new_recipes)} new + updated {len(updated_recipes)} recipes!")
-                    else:
-                        all_recipes = new_recipes
-                        st.success(f"✅ Added {len(new_recipes)} new recipes!")
-                else:
-                    all_recipes = new_recipes
-                    st.success(f"✅ Added {len(new_recipes)} new recipes!")
+                    # Load selected existing recipes
+                    if selected_existing:
+                        if st.button(f"📥 Load {len(selected_existing)} Selected Recipes", type="primary"):
+                            st.session_state.scraped_recipes = selected_existing
+                            st.success(f"✅ Ready to load {len(selected_existing)} recipes into batch!")
+                            st.rerun()
+                
+                # Combine with any new recipes found
+                all_recipes = new_recipes + existing_recipes_data
             else:
                 all_recipes = new_recipes
-                st.success(f"✅ Added {len(new_recipes)} new recipes!")
+                
+            if all_recipes:
+                st.success(f"✅ Total recipes available: {len(all_recipes)}")
             
             if all_recipes:
-                # Add to session state
-                current_recipes = st.session_state.get('recipes', [])
-                # Remove duplicates by URL and add new ones
-                url_to_recipe = {r['url']: r for r in current_recipes + all_recipes}
-                st.session_state.recipes = list(url_to_recipe.values())
+                # Add scraped recipes to the selection interface
                 st.session_state.scraped_recipes = all_recipes
                 st.session_state.show_scraper = True
+                
+                # Also add to current recipes if user wants to keep them
+                current_recipes = st.session_state.get('recipes', [])
+                if current_recipes:
+                    st.info(f"✅ Found {len(all_recipes)} recipes! You can select which ones to add to your current batch of {len(current_recipes)} recipes.")
+                else:
+                    st.info(f"✅ Found {len(all_recipes)} recipes! Select which ones to add to your batch.")
+                
                 st.rerun()
             else:
                 st.warning("No new recipes found.")
