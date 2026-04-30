@@ -3,6 +3,9 @@ app.py — Pinterest Factory Dashboard
 Main router. Initialises session state and renders all 4 tabs.
 """
 
+import os
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
 import streamlit as st
 from dotenv import load_dotenv
 

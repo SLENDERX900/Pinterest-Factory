@@ -13,4 +13,3 @@ playwright>=1.52.0
 feedparser>=6.0.11
 chromadb>=0.5.5
 sentence-transformers>=3.0.1
-protobuf>=5.28.0
