@@ -96,24 +96,33 @@ def _install_playwright_if_needed():
             print("PLAYWRIGHT DEBUG: Starting background installation", flush=True)
             
             # First install the playwright package if not available
+            print("PLAYWRIGHT DEBUG: Checking Playwright package availability...", flush=True)
+            
+            # Always try to install playwright to ensure it's available
+            print("PLAYWRIGHT DEBUG: Installing Playwright package...", flush=True)
+            result = subprocess.run(
+                ["pip", "install", "playwright"],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            print(f"PLAYWRIGHT DEBUG: Package install result: {result.returncode}", flush=True)
+            if result.stdout:
+                print(f"PLAYWRIGHT DEBUG: Package install stdout: {result.stdout}", flush=True)
+            if result.stderr:
+                print(f"PLAYWRIGHT DEBUG: Package install stderr: {result.stderr}", flush=True)
+            if result.returncode != 0:
+                print(f"PLAYWRIGHT DEBUG: Failed to install Playwright package: {result.stderr}", flush=True)
+                return
+            print("PLAYWRIGHT DEBUG: Playwright package installed successfully", flush=True)
+            
+            # Verify installation
             try:
                 import playwright
-                print("PLAYWRIGHT DEBUG: Playwright package already available", flush=True)
-            except ImportError:
-                print("PLAYWRIGHT DEBUG: Installing Playwright package...", flush=True)
-                result = subprocess.run(
-                    ["pip", "install", "playwright"],
-                    capture_output=True,
-                    text=True,
-                    timeout=120
-                )
-                print(f"PLAYWRIGHT DEBUG: Package install result: {result.returncode}", flush=True)
-                if result.stderr:
-                    print(f"PLAYWRIGHT DEBUG: Package install stderr: {result.stderr}", flush=True)
-                if result.returncode != 0:
-                    print(f"PLAYWRIGHT DEBUG: Failed to install Playwright package: {result.stderr}", flush=True)
-                    return
-                print("PLAYWRIGHT DEBUG: Playwright package installed successfully", flush=True)
+                print("PLAYWRIGHT DEBUG: Playwright package import successful", flush=True)
+            except ImportError as e:
+                print(f"PLAYWRIGHT DEBUG: Import still failed after installation: {e}", flush=True)
+                return
             
             # Then install the browsers
             print("PLAYWRIGHT DEBUG: Installing Playwright browsers for Pinterest scraping...", flush=True)
