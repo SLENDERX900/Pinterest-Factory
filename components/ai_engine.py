@@ -261,7 +261,9 @@ def render_ai_engine():
             st.markdown("**📱 Pinterest Content:**")
             for angle in angles:
                 hook_text = hooks.get(angle, "")
-                seo_text = st.session_state.pin_descriptions.get(name, {}).get(angle, "")
+                # Safe access to pin_descriptions
+                pin_descriptions = st.session_state.get('pin_descriptions', {})
+                seo_text = pin_descriptions.get(name, {}).get(angle, "")
                 if hook_text and seo_text:
                     st.markdown(f"""
                     <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px;">
