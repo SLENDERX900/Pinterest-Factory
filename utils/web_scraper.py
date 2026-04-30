@@ -1507,7 +1507,10 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     Sitemap scraping with active memory de-dup.
     Checks scraped_memory.db before processing each URL.
     """
-    from utils.sitemap_memory import has_url, mark_url
+    try:
+        from utils.sitemap_memory import has_url, mark_url
+    except ImportError:
+        from sitemap_memory import has_url, mark_url
 
     base_url = base_url.rstrip("/")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
