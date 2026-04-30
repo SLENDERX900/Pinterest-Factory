@@ -4,7 +4,6 @@ Scrapes Pinterest for trending pins related to a recipe or topic.
 """
 
 import re
-from typing import tuple
 import requests
 from bs4 import BeautifulSoup
 
