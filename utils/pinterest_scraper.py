@@ -85,7 +85,23 @@ class PinterestScraper:
             from playwright.async_api import async_playwright
             
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                # Try to install browsers if not available
+                try:
+                    browser = await p.chromium.launch(headless=True)
+                except Exception as e:
+                    if "Executable doesn't exist" in str(e):
+                        print("🔧 Playwright browsers not installed, installing...")
+                        try:
+                            import subprocess
+                            subprocess.run(["playwright", "install", "chromium"], check=True, capture_output=True)
+                            print("✅ Playwright browsers installed, retrying...")
+                            browser = await p.chromium.launch(headless=True)
+                        except Exception as install_error:
+                            print(f"❌ Failed to install Playwright browsers: {install_error}")
+                            return []
+                    else:
+                        raise e
+                
                 page = await browser.new_page()
                 
                 # Search Pinterest with keywords
@@ -111,6 +127,7 @@ class PinterestScraper:
                         continue
                 
                 await browser.close()
+                print(f"✅ Playwright scraping successful: {len(pins)} pins extracted")
                 return pins
                 
         except ImportError:

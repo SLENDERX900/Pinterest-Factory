@@ -84,7 +84,11 @@ def render_ai_engine():
             status_placeholder.info(f"⏳ Processing **{name}**...")
 
             # Trend scrape + RAG memory
-            trend_pins = scrape_pinterest_trends_sync(recipe.get("url", recipe.get("name", "")), max_pins=10)
+            # Use recipe name and keywords to find relevant Pinterest trends
+            search_query = f"{recipe.get('name', '')} {recipe.get('benefit', '')}".strip()
+            print(f"🔍 Searching Pinterest trends for: {search_query}")
+            
+            trend_pins = scrape_pinterest_trends_sync(search_query, max_pins=10)
             trend_source = "pinterest_scraper"
             store_trending_pins(trend_pins)
             rag_context = query_similar_trends(

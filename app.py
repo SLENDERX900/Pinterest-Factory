@@ -7,6 +7,11 @@ import streamlit as st
 from dotenv import load_dotenv
 import importlib
 import sys
+import warnings
+
+# Suppress transformers path access warnings
+warnings.filterwarnings("ignore", message=".*Accessing `__path__` from.*")
+warnings.filterwarnings("ignore", message=".*Behavior may be different and this alias will be removed.*")
 
 # Force reload of modules to see changes
 modules_to_reload = ['utils.groq_client', 'utils.rag_memory', 'utils.web_scraper']
