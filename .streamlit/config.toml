@@ -17,5 +17,3 @@ gatherUsageStats = false
 [runner]
 enforceSerializableSessionState = false
 
-[env]
-PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION = "python"

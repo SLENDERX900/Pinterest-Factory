@@ -51,13 +51,41 @@ except ImportError:
 def install_playwright():
     """Install Chromium browser and dependencies for Streamlit Cloud."""
     import subprocess
+    import sys
+    
     try:
-        # Install chromium browser
-        subprocess.run(["python", "-m", "playwright", "install", "chromium"], 
-                     check=True, capture_output=True, timeout=120)
-        print("Playwright Chromium installed successfully")
-    except subprocess.CalledProcessError as e:
-        print(f"Playwright install failed: {e}")
+        print("Installing Playwright Chromium...")
+        # Try installing chromium with more verbose output
+        result = subprocess.run(
+            ["python", "-m", "playwright", "install", "chromium"], 
+            capture_output=True, 
+            text=True, 
+            timeout=180
+        )
+        
+        if result.returncode == 0:
+            print("Playwright Chromium installed successfully")
+        else:
+            print(f"Playwright install failed with code {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            
+            # Try alternative approach - install all browsers
+            print("Trying alternative: install all browsers...")
+            result2 = subprocess.run(
+                ["python", "-m", "playwright", "install"],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            
+            if result2.returncode == 0:
+                print("Playwright browsers installed successfully")
+            else:
+                print(f"Alternative install failed: {result2.stderr}")
+                
+    except subprocess.TimeoutExpired:
+        print("Playwright install timed out")
     except Exception as e:
         print(f"Error installing Playwright: {e}")
 
