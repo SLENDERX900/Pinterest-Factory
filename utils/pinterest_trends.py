@@ -36,11 +36,46 @@ def _extract_keywords(query: str) -> str:
     return query
 
 
+def _install_playwright_if_needed():
+    """Lazy install Playwright browsers only when scraping is needed."""
+    import subprocess
+    import os
+    from pathlib import Path
+    
+    # Check if browsers are already installed
+    cache_dir = Path.home() / ".cache" / "ms-playwright"
+    if cache_dir.exists() and any(cache_dir.glob("chromium*")):
+        return True
+    
+    try:
+        print("Installing Playwright browsers for Pinterest scraping...")
+        result = subprocess.run(
+            ["python", "-m", "playwright", "install", "chromium"],
+            capture_output=True,
+            text=True,
+            timeout=180
+        )
+        
+        if result.returncode == 0:
+            print("Playwright Chromium installed successfully")
+            return True
+        else:
+            print(f"Playwright install failed: {result.stderr}")
+            return False
+    except Exception as e:
+        print(f"Playwright installation error: {e}")
+        return False
+
+
 def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[list[dict]]:
     """
     Use Playwright to scrape Pinterest search results.
     Returns None if Playwright fails or is not available.
     """
+    # Try to install browsers if not available
+    if not _install_playwright_if_needed():
+        return None
+    
     try:
         from playwright.sync_api import sync_playwright
         

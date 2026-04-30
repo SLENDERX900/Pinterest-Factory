@@ -40,57 +40,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Install Playwright browsers on Streamlit Cloud startup
-try:
-    import playwright
-except ImportError:
-    import subprocess
-    subprocess.run(["pip", "install", "playwright"])
-
-@st.cache_resource
-def install_playwright():
-    """Install Chromium browser and dependencies for Streamlit Cloud."""
-    import subprocess
-    import sys
-    
-    try:
-        print("Installing Playwright Chromium...")
-        # Try installing chromium with more verbose output
-        result = subprocess.run(
-            ["python", "-m", "playwright", "install", "chromium"], 
-            capture_output=True, 
-            text=True, 
-            timeout=180
-        )
-        
-        if result.returncode == 0:
-            print("Playwright Chromium installed successfully")
-        else:
-            print(f"Playwright install failed with code {result.returncode}")
-            print(f"STDOUT: {result.stdout}")
-            print(f"STDERR: {result.stderr}")
-            
-            # Try alternative approach - install all browsers
-            print("Trying alternative: install all browsers...")
-            result2 = subprocess.run(
-                ["python", "-m", "playwright", "install"],
-                capture_output=True,
-                text=True,
-                timeout=180
-            )
-            
-            if result2.returncode == 0:
-                print("Playwright browsers installed successfully")
-            else:
-                print(f"Alternative install failed: {result2.stderr}")
-                
-    except subprocess.TimeoutExpired:
-        print("Playwright install timed out")
-    except Exception as e:
-        print(f"Error installing Playwright: {e}")
-
-# Install on first run
-install_playwright()
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
