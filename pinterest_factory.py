@@ -15,8 +15,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import all Pinterest Factory components
-from utils.pinterest_scraper import scrape_pinterest_trends_sync
-from utils.rag_memory import store_pinterest_pins, query_similar_trends
+from scraper import ContextualScraper
+from memory_agent import MemoryAgent
+from generator import run_pinterest_factory_pipeline
 from utils.groq_client import generate_hook_packages
 from utils.image_generator import generate_hook_images
 from utils.scheduler import schedule_pinterest_factory_batch
@@ -82,17 +83,19 @@ class PinterestFactory:
         start_time = time.time()
         
         try:
-            # STEP 1: Scrape Pinterest trends
+            # STEP 1: Scrape Pinterest trends using new modular architecture
             print("\n📌 STEP 1: Scraping Pinterest Trends")
-            scraped_pins = await self._scrape_pinterest_trends(recipe_url)
+            scraper = ContextualScraper()
+            scraped_pins = scraper.scrape_pinterest_context(recipe_url, max_pins=10)
             
             if not scraped_pins:
                 print("⚠️  No Pinterest trends found, using fallback patterns")
             
-            # STEP 2: Store in RAG memory
+            # STEP 2: Store in RAG memory using new MemoryAgent
             print("\n🧠 STEP 2: Storing in RAG Memory")
             if scraped_pins:
-                stored_count = store_pinterest_pins(scraped_pins)
+                memory_agent = MemoryAgent()
+                stored_count = memory_agent.process_pinterest_pins(scraped_pins)
                 print(f"✅ Stored {stored_count} Pinterest pins in memory")
             
             # STEP 3: Generate enhanced hooks
@@ -144,16 +147,7 @@ class PinterestFactory:
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
     
-    async def _scrape_pinterest_trends(self, recipe_url: str) -> List[Dict]:
-        """Scrape Pinterest trends with fallback"""
-        try:
-            pins = await scrape_pinterest_trends_sync(recipe_url, max_pins=10)
-            print(f"✅ Scraped {len(pins)} Pinterest pins")
-            return pins
-        except Exception as e:
-            print(f"❌ Pinterest scraping failed: {e}")
-            return []
-    
+        
     def _generate_enhanced_hooks(self, recipe_data: Dict, trend_context: List[Dict]) -> List[Dict]:
         """Generate AI hooks with Pinterest semantic context"""
         try:

@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 import importlib
 import sys
 import warnings
+import os
+
+# Force install of playwright browsers if they don't exist
+os.system("playwright install chromium")
 
 # Suppress transformers path access warnings
 warnings.filterwarnings("ignore", message=".*Accessing `__path__` from.*")

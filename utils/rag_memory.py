@@ -3,6 +3,10 @@ Local ChromaDB memory for Pinterest trend context.
 """
 
 from __future__ import annotations
+# Silence transformers warnings for clean console output
+import os
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import hashlib
 import uuid
