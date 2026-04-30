@@ -78,9 +78,9 @@ class MemoryAgent:
             self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
             print("✅ Embedding model loaded: all-MiniLM-L6-v2")
             
-            # Initialize Qdrant client (local instance)
-            self.qdrant_client = QdrantClient(path="./data/qdrant")
-            print("✅ Qdrant client initialized (local)")
+            # Initialize Qdrant client (in-memory mode to prevent disk space issues)
+            self.qdrant_client = QdrantClient(":memory:")
+            print("✅ Qdrant client initialized (in-memory)")
             
             # Initialize text splitter for semantic chunking
             self.text_splitter = SimpleTextSplitter(

@@ -48,9 +48,8 @@ def _get_qdrant_client():
     if _qdrant_client is None:
         if globals().get('QDRANT_AVAILABLE', False):
             try:
-                # Initialize Qdrant client (local mode for free usage)
-                DB_DIR.mkdir(parents=True, exist_ok=True)
-                _qdrant_client = QdrantClient(path=str(DB_DIR))
+                # Initialize Qdrant client (in-memory mode to prevent disk space issues)
+                _qdrant_client = QdrantClient(":memory:")
                 
                 # Create collection if it doesn't exist
                 collections = _qdrant_client.get_collections().collections
@@ -64,9 +63,9 @@ def _get_qdrant_client():
                             distance=Distance.COSINE
                         )
                     )
-                    print(f"Created Qdrant collection: {COLLECTION_NAME}")
+                    print(f"Created Qdrant collection (in-memory): {COLLECTION_NAME}")
                 else:
-                    print(f"Connected to Qdrant collection: {COLLECTION_NAME}")
+                    print(f"Connected to Qdrant collection (in-memory): {COLLECTION_NAME}")
                 
             except Exception as e:
                 print(f"Error initializing Qdrant: {e}")
