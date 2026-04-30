@@ -13,7 +13,7 @@ from io import BytesIO
 import zipfile
 from datetime import datetime
 import random
-from utils.hf_image_client import generate_tailored_image
+from utils.image_generator import generate_hook_images
 
 
 # ── Web Scraping Helper ───────────────────────────────────────────────────────
@@ -444,9 +444,40 @@ def render_pin_generator():
                         template_idx += 1
                         print(f"DEBUG: Applying template: {template_func.__name__}")
                         
-                        # Try HF-tailored image first, then apply visual template fallback
-                        ai_img = generate_tailored_image(recipe_name, cleaned_hook, fallback_image=None)
-                        source_img = ai_img if ai_img else recipe_image.copy()
+                        # Try Hugging Face image generation first, then apply visual template fallback
+                        try:
+                            # Create hook data for image generation
+                            hook_data = {
+                                'hook': cleaned_hook,
+                                'vibe_prompt': f"Pinterest pin for {recipe_name}",
+                                'angle': angle
+                            }
+                            
+                            # Generate image with new API
+                            recipe_data = {
+                                'name': recipe_name,
+                                'image_url': recipe.get('image_url', '')
+                            }
+                            
+                            generated_images = generate_hook_images(recipe_data['image_url'], [hook_data])
+                            
+                            if generated_images and len(generated_images) > 0:
+                                # Convert base64 back to PIL Image
+                                import base64
+                                image_data = generated_images[0].get('image_base64', '')
+                                if image_data:
+                                    image_bytes = base64.b64decode(image_data)
+                                    ai_img = Image.open(BytesIO(image_bytes))
+                                else:
+                                    ai_img = None
+                            else:
+                                ai_img = None
+                                
+                            source_img = ai_img if ai_img else recipe_image.copy()
+                            
+                        except Exception as e:
+                            print(f"DEBUG: Image generation failed: {e}")
+                            source_img = recipe_image.copy()
                         img = template_func(source_img, cleaned_hook, font_base_path)
                         print(f"DEBUG: Generated pin for {recipe_name} - {angle}")
                         
