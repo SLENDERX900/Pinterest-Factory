@@ -198,10 +198,11 @@ def render_ai_engine():
         name = recipe["name"]
         hooks = st.session_state.hooks.get(name, {})
         description = st.session_state.descriptions.get(name, "")
+        hook_packages = st.session_state.hook_packages.get(name, [])
 
         with st.expander(f"**{name}** — {recipe.get('time', '')} · {recipe.get('benefit', '')}", expanded=True):
 
-            # Dynamic hooks display - show all generated hooks
+            # Dynamic hooks display - show all generated hooks with SEO descriptions
             col_left, col_right = st.columns(2)
             cols = [col_left, col_right, col_left, col_right, col_left]
 
@@ -221,6 +222,17 @@ def render_ai_engine():
                     cols[i].caption(f"⚠️ {word_count} words — aim for 8 or fewer")
                 else:
                     cols[i].caption(f"{word_count} words ✓" if new_val else "")
+
+                # Find and display SEO description from hook packages
+                hook_desc = ""
+                for package in hook_packages:
+                    if package.get('angle') == angle:
+                        hook_desc = package.get('description', '')
+                        break
+                
+                if hook_desc:
+                    cols[i].caption(f"📝 {hook_desc[:80]}{'...' if len(hook_desc) > 80 else ''}")
+                    cols[i].markdown(f"<small style='color: #666; font-size: 0.8em;'>{hook_desc}</small>", unsafe_allow_html=True)
 
                 # Save edit back to state
                 if new_val != current:
