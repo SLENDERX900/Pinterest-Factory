@@ -13,8 +13,8 @@ from utils.groq_client import (
     ANGLES,
     GROQ_MODEL,
 )
-from scraper import ContextualScraper
-from memory_agent import MemoryAgent
+from utils.pinterest_scraper import scrape_pinterest_trends_sync
+from utils.rag_memory import store_trending_pins, query_similar_trends
 
 
 def render_ai_engine():
@@ -83,19 +83,15 @@ def render_ai_engine():
             progress.progress(pct, text=f"Generating: {name} ({idx + 1}/{len(recipes)})")
             status_placeholder.info(f"⏳ Processing **{name}**...")
 
-            # Trend scrape + RAG memory using new modular architecture
+            # Trend scrape + RAG memory
+            # Use recipe name and keywords to find relevant Pinterest trends
             search_query = f"{recipe.get('name', '')} {recipe.get('benefit', '')}".strip()
             print(f"🔍 Searching Pinterest trends for: {search_query}")
             
-            # Use new ContextualScraper
-            scraper = ContextualScraper()
-            trend_pins = scraper.scrape_pinterest_context(recipe.get('url', search_query), max_pins=10)
-            trend_source = "contextual_scraper"
-            
-            # Use new MemoryAgent for RAG
-            memory_agent = MemoryAgent()
-            memory_agent.process_pinterest_pins(trend_pins)
-            rag_context = memory_agent.reasoning_verification_loop(
+            trend_pins = scrape_pinterest_trends_sync(search_query, max_pins=10)
+            trend_source = "pinterest_scraper"
+            store_trending_pins(trend_pins)
+            rag_context = query_similar_trends(
                 f"{recipe.get('name', '')} {recipe.get('benefit', '')} {recipe.get('time', '')}",
                 top_k=5,
             )
