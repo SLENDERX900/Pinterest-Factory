@@ -117,10 +117,13 @@ def _extract_dynamic_angles(recipe: dict, trend_context: list[dict]) -> list[str
 
 def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None, model: str | None = None) -> list[dict[str, Any]]:
     """
-    STEP 3: Generate hook packages with COMPLETELY UNIQUE angles per recipe.
-    The AI invents both the angle names AND the hooks based purely on recipe content.
+    STEP 3: Generate dynamic hook packages based on recipe + web scraping.
+    Angles are self-determined by AI based on content, not fixed templates.
     """
     trend_context = trend_context or []
+    
+    # Determine dynamic angles for this recipe
+    dynamic_angles = _extract_dynamic_angles(recipe, trend_context)
     
     context_lines = [
         f"- {c.get('title','')} | {c.get('description','')}"[:280]
@@ -128,8 +131,9 @@ def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None
     ]
     context_block = "\n".join(context_lines) if context_lines else "- (no trend context found)"
     
-    prompt = f"""
-Target recipe:
+    angles_list = "\n".join([f"  {i+1}. {angle}" for i, angle in enumerate(dynamic_angles)])
+    
+    prompt = f"""Target recipe:
 - Name: {recipe.get("name","")}
 - Time: {recipe.get("time","")}
 - Ingredient count: {recipe.get("ingredients","")}
@@ -139,43 +143,55 @@ Target recipe:
 Similar trending Pinterest pins:
 {context_block}
 
-INVENT 5 completely unique angle names for THIS specific recipe.
-The angles should capture what makes this dish special - be creative and specific.
+Create 5 hooks for these angles:
+{angles_list}
 
-Examples of UNIQUE angle names (DO NOT copy these - create new ones):
-- For crispy chicken: "Shatter-Crunch", "Juice-Explosion", "Kid-Smuggler", "Leftover-Killer"
-- For a soup: "Bowl-Hug", "Sick-Day-Saver", "Freezer-Stocker", "Topping-Bar"
-- For pasta: "Sauce-Magnet", "Cheese-Pull", "Garlic-Bomb", "One-Pot-Wonder"
+CRITICAL: Each hook must be CUSTOM-TAILORED to its specific angle. Do NOT use the same sentence pattern for all hooks.
 
-Return ONLY valid JSON as an array of 5 objects.
-Each object must include:
-- angle (2-3 words that capture ONE specific benefit/angle of THIS recipe, hyphenated or catchy)
-- hook (<= 8 words, humanized, specific, punchy, includes the recipe name naturally)
-- description (<= 150 chars, SEO-friendly)
-- vibe_prompt (short visual direction for image generation)
+EXAMPLES BY ANGLE TYPE:
+- "Lightning-Fast" → "Dinner ready before the pasta water boils" or "20 minutes start to finish"
+- "Health-Boost" → "High protein without the bland" or "Guilt-free comfort food"
+- "Protein-Packed" → "40g protein per serving" or "Muscles love this bowl"
+- "Texture-Perfect" → "Crispy edges, juicy center" or "The crunch you crave"
+- "Minimal-Cleanup" → "One pan, zero regrets" or "The dishwasher stays closed"
+- "Budget-Smart" → "Feeds 4 for under $10" or "Pantry staples, restaurant taste"
+- "Family-Approved" → "Picky eaters ask for seconds" or "Kid-tested, parent-loved"
+- "Big-Flavor" → "Garlicky, buttery, perfect" or "Bold flavors, simple steps"
 
-The angles MUST be unique to this recipe - not generic templates like "Quick" or "Easy".
+RULES:
+- Each hook MUST sound different from the others (vary sentence structure)
+- Hook must REFLECT its angle's specific promise (not just mention the recipe name)
+- <= 8 words per hook
+- Human, punchy, scroll-stopping
+
+Return ONLY valid JSON as an array of 5 objects:
+[{{"angle": "...", "hook": "...", "description": "...", "vibe_prompt": "..."}}, ...]
 """
     try:
         raw = _generate(prompt, model=model)
         data = json.loads(raw)
         if isinstance(data, list) and len(data) >= 5:
             return data[:5]
-    except Exception as e:
-        print(f"[Groq] Hook generation failed: {e}")
+    except Exception:
         pass
 
-    # Fallback: generate truly unique angles based on recipe name
+    # Fallback hooks - angle-specific and varied sentence structures
     name = recipe.get("name", "Recipe")
-    name_words = name.lower().split()[:2]  # First 2 words
-    base = name_words[0] if name_words else "Dish"
+    time = recipe.get("time", "")
+    benefit = recipe.get("benefit", "")
+    
+    # Create varied hooks that match typical angle meanings
+    fallback_hooks = [
+        {"hook": "Dinner ready before delivery arrives", "desc": f"Fast {name} for busy weeknights.", "vibe": "speedy modern kitchen action"},
+        {"hook": "Set it and forget it", "desc": f"Hands-off {name} with maximum flavor.", "vibe": "relaxed cooking scene"},
+        {"hook": "The recipe that converted skeptics", "desc": f"Family-favorite {name} everyone loves.", "vibe": "happy family dinner moment"},
+        {"hook": "Pantry staples, restaurant results", "desc": f"Budget-friendly {name} that impresses.", "vibe": "elegant plating on simple table"},
+        {"hook": "Crispy outside, juicy inside", "desc": f"Perfect texture every single time.", "vibe": "macro food texture shot"},
+    ]
     
     return [
-        {"angle": f"{base.title()}-Magic", "hook": f"Fast {name} in minutes", "description": f"Quick {name} for busy nights.", "vibe_prompt": "bright, efficient weeknight dinner"},
-        {"angle": f"{base.title()}-Essentials", "hook": f"Low-effort {name} tonight", "description": f"Minimal effort {name} with big flavor.", "vibe_prompt": "cozy one-pan comfort mood"},
-        {"angle": f"{base.title()}-Winner", "hook": f"Weeknight {name} hero", "description": f"Reliable {name} for your weeknight rotation.", "vibe_prompt": "family dinner table warmth"},
-        {"angle": f"{base.title()}-Hack", "hook": f"Simple {name} ingredient win", "description": f"Easy pantry-friendly {name} anyone can make.", "vibe_prompt": "minimal ingredients styled cleanly"},
-        {"angle": f"{base.title()}-Method", "hook": f"Best method for {name}", "description": f"Foolproof method to make {name} perfectly.", "vibe_prompt": "close-up food texture detail"},
+        {"angle": dynamic_angles[i], "hook": fb["hook"], "description": fb["desc"], "vibe_prompt": fb["vibe"]}
+        for i, fb in enumerate(fallback_hooks[:5])
     ]
 
 
