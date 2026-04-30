@@ -201,22 +201,28 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
     
     draw = ImageDraw.Draw(image)
     
-    # Load font
+    # Load font with bulletproof error handling
     try:
-        if font_base_path:
-            font_file = os.path.join(font_base_path, 'Montserrat-Medium.ttf')
-            if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, BRAND_FONT_SIZE)
-                print(f"DEBUG: Loaded custom font: {font_file}")
-            else:
-                font = ImageFont.load_default()
-                print("DEBUG: Font file not found, using default")
-        else:
-            font = ImageFont.load_default()
-            print("DEBUG: No font path provided, using default")
+        # Use absolute path to ensure we find the font
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        font_file = os.path.join(current_dir, '..', 'fonts', 'Montserrat-Bold.ttf')
+        
+        # Debug: Print the exact path we're trying
+        print(f"WATERMARK DEBUG: Attempting to load font from: {font_file}")
+        print(f"WATERMARK DEBUG: Font file exists: {os.path.exists(font_file)}")
+        
+        if not os.path.exists(font_file):
+            st.error("STOP: Montserrat-Bold.ttf not found in the fonts directory!")
+            st.error(f"Expected font at: {font_file}")
+            st.stop()
+        
+        font = ImageFont.truetype(font_file, BRAND_FONT_SIZE)
+        print(f"WATERMARK DEBUG: Successfully loaded font: {font_file}")
+        
     except Exception as e:
-        font = ImageFont.load_default()
-        print(f"DEBUG: Font loading failed: {e}, using default")
+        st.error(f"STOP: Font loading failed: {str(e)}")
+        st.error("Please ensure Montserrat-Bold.ttf is in the fonts directory")
+        st.stop()
     
     domain = "nobscooking.com"
     
@@ -294,18 +300,22 @@ def apply_template_hero_top(image: Image.Image, hook: str, font_base_path: str =
     # Composite
     img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
     
-    # Load large bold font
+    # Load font with bulletproof error handling
     try:
-        if font_base_path:
-            font_file = os.path.join(font_base_path, 'Montserrat-Black.ttf')
-            if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, FONT_SIZE_HEADLINE)
-            else:
-                font = ImageFont.load_default()
-        else:
-            font = ImageFont.load_default()
-    except:
-        font = ImageFont.load_default()
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        font_file = os.path.join(current_dir, '..', 'fonts', 'Montserrat-Bold.ttf')
+        
+        if not os.path.exists(font_file):
+            st.error("STOP: Montserrat-Bold.ttf not found in the fonts directory!")
+            st.error(f"Expected font at: {font_file}")
+            st.stop()
+        
+        font = ImageFont.truetype(font_file, FONT_SIZE_HEADLINE)
+        
+    except Exception as e:
+        st.error(f"STOP: Font loading failed: {str(e)}")
+        st.error("Please ensure Montserrat-Bold.ttf is in the fonts directory")
+        st.stop()
     
     # Draw text with stroke at top
     draw = ImageDraw.Draw(img)
@@ -331,56 +341,56 @@ def apply_template_hero_top(image: Image.Image, hook: str, font_base_path: str =
     return img
 
 
-def apply_template_bottom_banner(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
+def apply_template_center_badge(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
     """
-    Template 2: Bottom Banner.
-    Food image fills top, text on solid color banner at bottom.
-    Great for showing off the food.
+    Template 2: Center Badge.
+    Dark charcoal box directly in the middle of the 1000x1500 image.
+    Food image as background with centered overlay box.
     """
-    # Create canvas
-    img = Image.new('RGB', (PIN_WIDTH, PIN_HEIGHT))
+    # Create canvas with food image as background
+    img = ImageOps.fit(image, (PIN_WIDTH, PIN_HEIGHT), Image.Resampling.LANCZOS)
     
-    # Resize and crop food image to top 70%
-    food_img = ImageOps.fit(image, (PIN_WIDTH, int(PIN_HEIGHT * 0.7)), Image.Resampling.LANCZOS)
-    img.paste(food_img, (0, 0))
-    
-    # Draw solid color banner at bottom (30%)
+    # Draw dark charcoal box in the center [100, 500, 900, 1000]
     draw = ImageDraw.Draw(img)
-    banner_color = (204, 85, 0)  # Warm terracotta
-    draw.rectangle([0, int(PIN_HEIGHT * 0.7), PIN_WIDTH, PIN_HEIGHT], fill=banner_color)
+    badge_color = (40, 40, 40)  # Dark charcoal
+    draw.rectangle([100, 500, 900, 1000], fill=badge_color)
     
-    # Load font
+    # Load font with bulletproof error handling
     try:
-        if font_base_path:
-            font_file = os.path.join(font_base_path, 'Montserrat-ExtraBold.ttf')
-            if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, FONT_SIZE_SUB)
-            else:
-                font = ImageFont.load_default()
-        else:
-            font = ImageFont.load_default()
-    except:
-        font = ImageFont.load_default()
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        font_file = os.path.join(current_dir, '..', 'fonts', 'Montserrat-Bold.ttf')
+        
+        if not os.path.exists(font_file):
+            st.error("STOP: Montserrat-Bold.ttf not found in the fonts directory!")
+            st.error(f"Expected font at: {font_file}")
+            st.stop()
+        
+        font = ImageFont.truetype(font_file, FONT_SIZE_SUB)
+        
+    except Exception as e:
+        st.error(f"STOP: Font loading failed: {str(e)}")
+        st.error("Please ensure Montserrat-Bold.ttf is in the fonts directory")
+        st.stop()
     
-    # Draw text in banner area
-    hook_lines = wrap_text(hook, font, PIN_WIDTH - 80)
+    # Draw text in the centered badge area
+    hook_lines = wrap_text(hook, font, 700)  # Badge width minus padding
     
-    banner_top = int(PIN_HEIGHT * 0.7)
-    banner_height = int(PIN_HEIGHT * 0.3)
+    badge_center_x = 500  # Center of [100, 500, 900, 1000]
+    badge_center_y = 750  # Center of [100, 500, 900, 1000]
     
-    total_text_height = len(hook_lines[:2]) * (FONT_SIZE_SUB + 15)
-    y_offset = banner_top + (banner_height - total_text_height) // 2
+    total_text_height = len(hook_lines[:3]) * (FONT_SIZE_SUB + 10)
+    y_offset = badge_center_y - (total_text_height // 2)
     
-    for line in hook_lines[:2]:  # Max 2 lines
+    for line in hook_lines[:3]:  # Max 3 lines
         bbox = font.getbbox(line)
         text_width = bbox[2] - bbox[0]
-        x = (PIN_WIDTH - text_width) // 2
+        x = badge_center_x - (text_width // 2)  # Center in badge
         
         draw_text_with_stroke(draw, line, font, x, y_offset,
-                            fill_color=(255, 255, 255),
+                            fill_color=(255, 255, 255),  # ENFORCED WHITE TEXT
                             stroke_color=(0, 0, 0),
                             stroke_width=4)
-        y_offset += FONT_SIZE_SUB + 15
+        y_offset += FONT_SIZE_SUB + 10
     
     # Add watermark
     img = add_branding_watermark(img, font_base_path)
@@ -388,61 +398,60 @@ def apply_template_bottom_banner(image: Image.Image, hook: str, font_base_path: 
     return img
 
 
-def apply_template_side_overlay(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
+def apply_template_split_screen(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
     """
-    Template 3: Side Overlay.
-    Food image on right, colored overlay panel on left with text.
-    Modern asymmetrical design.
+    Template 3: Split Screen.
+    Orange block on TOP, food image on bottom.
+    Modern split design with orange header.
     """
     # Create canvas
     img = Image.new('RGB', (PIN_WIDTH, PIN_HEIGHT))
     
-    # Food image on right side (65% width)
-    food_width = int(PIN_WIDTH * 0.65)
-    food_img = ImageOps.fit(image, (food_width, PIN_HEIGHT), Image.Resampling.LANCZOS)
-    img.paste(food_img, (PIN_WIDTH - food_width, 0))
-    
-    # Left panel with gradient
-    overlay = Image.new('RGBA', (PIN_WIDTH, PIN_HEIGHT), (0, 0, 0, 0))
-    draw_ov = ImageDraw.Draw(overlay)
-    
-    panel_width = int(PIN_WIDTH * 0.45)
-    # Gradient from left (solid) to right (transparent where food starts)
-    for x in range(panel_width):
-        alpha = int(230 * (1 - x / panel_width * 0.3))  # Keep mostly opaque
-        draw_ov.line([(x, 0), (x, PIN_HEIGHT)], fill=(40, 40, 40, alpha))
-    
-    img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
-    
-    # Load font
-    try:
-        if font_base_path:
-            font_file = os.path.join(font_base_path, 'Montserrat-Black.ttf')
-            if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, 100)
-            else:
-                font = ImageFont.load_default()
-        else:
-            font = ImageFont.load_default()
-    except:
-        font = ImageFont.load_default()
-    
-    # Draw text on left panel
+    # Draw orange block on TOP [0, 0, 1000, 750]
     draw = ImageDraw.Draw(img)
-    hook_lines = wrap_text(hook, font, panel_width - 60)
+    orange_color = (255, 140, 0)  # Orange
+    draw.rectangle([0, 0, PIN_WIDTH, 750], fill=orange_color)
     
-    # Vertically center text
-    total_height = len(hook_lines[:3]) * 120
-    y_offset = (PIN_HEIGHT - total_height) // 2
+    # Paste food image at bottom using coordinates (0, 750)
+    food_img = ImageOps.fit(image, (PIN_WIDTH, 750), Image.Resampling.LANCZOS)
+    img.paste(food_img, (0, 750))
     
-    for line in hook_lines[:3]:  # Max 3 lines
-        draw_text_with_stroke(draw, line, font, 40, y_offset,
-                            fill_color=(255, 255, 255),
+    # Load font with bulletproof error handling
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        font_file = os.path.join(current_dir, '..', 'fonts', 'Montserrat-Bold.ttf')
+        
+        if not os.path.exists(font_file):
+            st.error("STOP: Montserrat-Bold.ttf not found in the fonts directory!")
+            st.error(f"Expected font at: {font_file}")
+            st.stop()
+        
+        font = ImageFont.truetype(font_file, FONT_SIZE_SUB)
+        
+    except Exception as e:
+        st.error(f"STOP: Font loading failed: {str(e)}")
+        st.error("Please ensure Montserrat-Bold.ttf is in the fonts directory")
+        st.stop()
+    
+    # Draw text in orange top area
+    hook_lines = wrap_text(hook, font, PIN_WIDTH - 80)
+    
+    orange_height = 750
+    total_text_height = len(hook_lines[:2]) * (FONT_SIZE_SUB + 15)
+    y_offset = (orange_height - total_text_height) // 2
+    
+    for line in hook_lines[:2]:  # Max 2 lines
+        bbox = font.getbbox(line)
+        text_width = bbox[2] - bbox[0]
+        x = (PIN_WIDTH - text_width) // 2  # Center in orange area
+        
+        draw_text_with_stroke(draw, line, font, x, y_offset,
+                            fill_color=(255, 255, 255),  # ENFORCED WHITE TEXT
                             stroke_color=(0, 0, 0),
-                            stroke_width=5)
-        y_offset += 120
+                            stroke_width=4)
+        y_offset += FONT_SIZE_SUB + 15
     
-    # Add watermark at bottom right
+    # Add watermark
     img = add_branding_watermark(img, font_base_path)
     
     return img
@@ -477,8 +486,8 @@ def render_pin_generator():
             generated_images = []
             template_functions = [
                 apply_template_hero_top,
-                apply_template_bottom_banner,
-                apply_template_side_overlay
+                apply_template_center_badge,
+                apply_template_split_screen
             ]
             
             print("DEBUG: Starting pin generation...")
