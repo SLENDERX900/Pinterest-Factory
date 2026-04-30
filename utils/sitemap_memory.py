@@ -62,14 +62,3 @@ def clear_url(url: str) -> None:
     with _conn() as conn:
         conn.execute("DELETE FROM scraped_urls WHERE url = ?", (url,))
         conn.commit()
-
-
-def get_all_scraped_recipes() -> list[dict]:
-    """
-    Get all recipes that were previously scraped and stored in session.
-    This is a helper function to retrieve recipes from previous sessions.
-    Note: This returns empty if no recipes are in current session state.
-    """
-    # This would need to be implemented with actual database storage
-    # For now, return empty list - recipes are only stored in session state
-    return []
