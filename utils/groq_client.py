@@ -43,28 +43,61 @@ def _generate(prompt: str, model: str | None = None, max_tokens: int = 900) -> s
 
 
 def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None, model: str | None = None) -> list[dict[str, Any]]:
+    """
+    Enhanced hook generation with Pinterest semantic context analysis
+    """
     trend_context = trend_context or []
     
-    # DEBUG: Log context usage
-    print(f"\n🔍 GROQ CONTEXT ANALYSIS:")
+    # DEBUG: Enhanced context analysis
+    print(f"\n🔍 ENHANCED GROQ CONTEXT ANALYSIS:")
     print(f"   Recipe: {recipe.get('name', 'Unknown')}")
     print(f"   Trend context items: {len(trend_context)}")
     
     if trend_context:
-        print(f"   Using web scraping context: YES")
-        print(f"   Trending pins being analyzed:")
+        print(f"   Using Pinterest semantic context: YES")
+        print(f"   Pinterest pins being analyzed:")
+        
+        # Analyze Pinterest-specific metrics
+        total_saves = 0
+        high_engagement_pins = 0
+        
         for i, pin in enumerate(trend_context[:3]):  # Show first 3
-            title = pin.get('title', 'No title')[:50]
-            desc = pin.get('description', 'No description')[:50]
-            print(f"     {i+1}. {title} | {desc}")
+            title = pin.get('title', 'No title')[:40]
+            desc = pin.get('description', 'No description')[:40]
+            saves = pin.get('saves', '0')
+            engagement = pin.get('engagement_score', 0)
+            
+            if saves != 'RSS':
+                total_saves += 1
+            if engagement > 0.5:
+                high_engagement_pins += 1
+                
+            print(f"     {i+1}. {title} | {desc} | 💾{saves} | ⭐{engagement:.2f}")
+        
+        print(f"   📊 Pinterest metrics: {total_saves} pins with saves, {high_engagement_pins} high engagement")
     else:
-        print(f"   Using web scraping context: NO - will fallback to generic patterns")
+        print(f"   Using Pinterest semantic context: NO - will fallback to generic patterns")
     
-    context_lines = [
-        f"- {c.get('title','')} | {c.get('description','')}"[:280]
-        for c in trend_context[:5]
-    ]
-    context_block = "\n".join(context_lines) if context_lines else "- (no trend context found)"
+    # Enhanced context block with Pinterest-specific formatting
+    context_lines = []
+    for i, pin in enumerate(trend_context[:5]):
+        title = pin.get('title', '')
+        desc = pin.get('description', '')
+        saves = pin.get('saves', '')
+        engagement = pin.get('engagement_score', 0)
+        
+        # Create rich context line with Pinterest metrics
+        context_line = f"- Pin {i+1}: {title}"
+        if desc:
+            context_line += f" | {desc}"
+        if saves and saves != 'RSS':
+            context_line += f" | 💾{saves} saves"
+        if engagement > 0.5:
+            context_line += " | ⭐HIGH ENGAGEMENT"
+        
+        context_lines.append(context_line[:280])
+    
+    context_block = "\n".join(context_lines) if context_lines else "- (no Pinterest context found)"
     prompt = f"""
 Target recipe:
 - Name: {recipe.get("name","")}
@@ -73,26 +106,36 @@ Target recipe:
 - Benefit: {recipe.get("benefit","")}
 - URL: {recipe.get("url","")}
 
-Similar trending Pinterest pins:
+Similar trending Pinterest pins with engagement metrics:
 {context_block}
 
-STUDY the trending pins above. Notice their description patterns, keywords, and promotional language.
-Learn from what makes them successful and apply similar techniques.
+ANALYZE the Pinterest pins above. Pay special attention to:
+- Pins with HIGH ENGAGEMENT (⭐) - these are proven winners
+- Save counts (💾) - higher saves indicate proven appeal
+- Title patterns that drive engagement
+- Description psychology that converts
+- Hashtag strategies that work
+
+LEARN from successful Pinterest psychology:
+- What emotional triggers work best?
+- What benefit-focused language converts?
+- What hashtag combinations drive discovery?
+- What call-to-action patterns get saves?
 
 Return ONLY valid JSON as an array of 5 objects.
 Each object must include:
 - angle (one of {ANGLES})
-- hook (<= 8 words, humanized, specific)
-- description (<= 150 chars, Pinterest-optimized SEO)
+- hook (<= 8 words, humanized, specific, emotional)
+- description (<= 150 chars, Pinterest-optimized with proven psychology)
 - vibe_prompt (short visual direction for image generation)
 
-For descriptions: Make them PROMOTIONAL and PINTERCAST-OPTIMIZED:
-- Start with compelling keywords
-- Include 2-3 relevant hashtags
-- Add a subtle call-to-action
-- Use Pinterest SEO best practices
-- Learn from trending pin patterns above
-- Focus on benefits and results
+For descriptions: Apply PROVEN Pinterest psychology:
+- Use emotional triggers from high-engagement pins
+- Include 2-3 trending hashtags from successful pins
+- Add benefit-focused language that drives saves
+- Use call-to-action patterns that convert
+- Mirror the psychology of pins with 💾 high save counts
+- Focus on the emotional benefits, not just features
 """
     try:
         print(f"📤 Sending prompt to Groq with {len(trend_context)} trend items...")

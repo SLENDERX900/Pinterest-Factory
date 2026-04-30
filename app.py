@@ -5,6 +5,14 @@ Main router. Initialises session state and renders all 4 tabs.
 
 import streamlit as st
 from dotenv import load_dotenv
+import importlib
+import sys
+
+# Force reload of modules to see changes
+modules_to_reload = ['utils.groq_client', 'utils.rag_memory', 'utils.web_scraper']
+for module in modules_to_reload:
+    if module in sys.modules:
+        importlib.reload(sys.modules[module])
 
 load_dotenv()
 
@@ -39,6 +47,15 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+# Debug controls (only in development)
+if st.sidebar.button("🔄 Clear Session State"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    for key, val in DEFAULTS.items():
+        st.session_state[key] = val
+    st.success("Session state cleared!")
+    st.rerun()
 
 # Status bar
 col1, col2, col3, col4 = st.columns(4)
