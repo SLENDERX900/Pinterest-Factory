@@ -35,11 +35,29 @@ def _extract_keywords(query: str) -> str:
     return query
 
 
+def _ensure_playwright_browsers():
+    """Install Playwright browsers if missing (needed for Streamlit Cloud)."""
+    import os
+    cache_dir = Path.home() / ".cache" / "ms-playwright"
+    if not cache_dir.exists() or not any(cache_dir.iterdir()):
+        logger.info("Playwright browsers not found, installing...")
+        try:
+            import subprocess
+            subprocess.run(["python", "-m", "playwright", "install", "chromium"], 
+                         check=True, capture_output=True, timeout=120)
+            logger.info("Playwright browsers installed successfully")
+        except Exception as e:
+            logger.warning(f"Could not install Playwright browsers: {e}")
+
+
 def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[list[dict]]:
     """
     Use Playwright to scrape Pinterest search results.
     Returns None if Playwright fails or is not available.
     """
+    # Ensure browsers are installed (for Streamlit Cloud)
+    _ensure_playwright_browsers()
+    
     try:
         from playwright.sync_api import sync_playwright
         

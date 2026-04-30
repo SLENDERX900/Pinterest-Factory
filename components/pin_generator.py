@@ -503,7 +503,7 @@ def render_pin_generator():
         cols = st.columns(3)
         for i, pin in enumerate(pins):
             with cols[i % 3]:
-                st.image(pin['image'], caption=f"{pin['recipe']}\n{pin['angle']}", use_container_width=True)
+                st.image(pin['image'], caption=f"{pin['recipe']}\n{pin['angle']}", width="stretch")
         
         # Show count and download button
         st.divider()
@@ -514,7 +514,7 @@ def render_pin_generator():
         
         with col2:
             # Create zip file for download
-            if st.button("📥 Download All Pins (ZIP)", use_container_width=True):
+            if st.button("📥 Download All Pins (ZIP)"):
                 with st.spinner("Creating ZIP file..."):
                     zip_buffer = BytesIO()
                     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
