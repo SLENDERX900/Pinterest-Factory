@@ -146,23 +146,25 @@ Similar trending Pinterest pins:
 Create 5 hooks for these angles:
 {angles_list}
 
-CRITICAL: Each hook must be CUSTOM-TAILORED to its specific angle. Do NOT use the same sentence pattern for all hooks.
+CRITICAL RULE: The hook content MUST directly express what the angle promises:
 
-EXAMPLES BY ANGLE TYPE:
-- "Lightning-Fast" → "Dinner ready before the pasta water boils" or "20 minutes start to finish"
-- "Health-Boost" → "High protein without the bland" or "Guilt-free comfort food"
-- "Protein-Packed" → "40g protein per serving" or "Muscles love this bowl"
-- "Texture-Perfect" → "Crispy edges, juicy center" or "The crunch you crave"
-- "Minimal-Cleanup" → "One pan, zero regrets" or "The dishwasher stays closed"
-- "Budget-Smart" → "Feeds 4 for under $10" or "Pantry staples, restaurant taste"
-- "Family-Approved" → "Picky eaters ask for seconds" or "Kid-tested, parent-loved"
-- "Big-Flavor" → "Garlicky, buttery, perfect" or "Bold flavors, simple steps"
+ANGLE → HOOK CONTENT MAPPING:
+- "Lightning-Fast" = speed/urgency → "20 minutes start to finish", "Dinner before delivery arrives"
+- "Health-Boost" = nutrition/guilt-free → "Guilt-free comfort in every bite", "Nutrition that actually satisfies"  
+- "Protein-Packed" = muscle/fuel → "40g protein per serving", "Muscles love this bowl"
+- "Texture-Perfect" = mouthfeel/crunch → "Crispy outside, juicy inside", "The crunch you crave"
+- "Minimal-Cleanup" = ease/cleanup → "One pan, zero regrets", "The dishwasher stays closed"
+- "Budget-Smart" = money/value → "Feeds 4 for under $10", "Pantry staples, restaurant taste"
+- "Family-Approved" = picky eaters/kids → "Picky eaters ask for seconds", "Kid-tested, parent-loved"
+- "Big-Flavor" = taste intensity → "Garlicky, buttery, perfect", "Bold flavors, simple steps"
+- "Effortless" = ease/laziness → "Set it and forget it", "Lazy night perfection"
 
-RULES:
-- Each hook MUST sound different from the others (vary sentence structure)
-- Hook must REFLECT its angle's specific promise (not just mention the recipe name)
-- <= 8 words per hook
-- Human, punchy, scroll-stopping
+ABSOLUTELY FORBIDDEN:
+- Putting "Set it and forget it" under Health-Boost (wrong angle!)
+- Using "Crispy outside, juicy inside" under Time-Saver (wrong angle!)
+- Generic hooks that don't express the angle's specific promise
+
+Each hook must be ANGLE-NATIVE: if you read only the hook, you should know which angle it belongs to.
 
 Return ONLY valid JSON as an array of 5 objects:
 [{{"angle": "...", "hook": "...", "description": "...", "vibe_prompt": "..."}}, ...]
@@ -175,23 +177,45 @@ Return ONLY valid JSON as an array of 5 objects:
     except Exception:
         pass
 
-    # Fallback hooks - angle-specific and varied sentence structures
+    # Angle-specific hook templates - each hook MUST match its angle meaning
     name = recipe.get("name", "Recipe")
     time = recipe.get("time", "")
     benefit = recipe.get("benefit", "")
     
-    # Create varied hooks that match typical angle meanings
-    fallback_hooks = [
-        {"hook": "Dinner ready before delivery arrives", "desc": f"Fast {name} for busy weeknights.", "vibe": "speedy modern kitchen action"},
-        {"hook": "Set it and forget it", "desc": f"Hands-off {name} with maximum flavor.", "vibe": "relaxed cooking scene"},
-        {"hook": "The recipe that converted skeptics", "desc": f"Family-favorite {name} everyone loves.", "vibe": "happy family dinner moment"},
-        {"hook": "Pantry staples, restaurant results", "desc": f"Budget-friendly {name} that impresses.", "vibe": "elegant plating on simple table"},
-        {"hook": "Crispy outside, juicy inside", "desc": f"Perfect texture every single time.", "vibe": "macro food texture shot"},
-    ]
+    # Map angles to appropriate hook content
+    def hook_for_angle(angle: str) -> dict:
+        angle_lower = angle.lower()
+        
+        if "lightning" in angle_lower or "fast" in angle_lower or "quick" in angle_lower:
+            return {"hook": "Dinner ready before delivery arrives", "desc": f"Lightning-fast {name} for busy nights.", "vibe": "speedy energetic cooking"}
+        elif "health" in angle_lower or "healthy" in angle_lower or "nutrit" in angle_lower:
+            return {"hook": "Guilt-free comfort in every bite", "desc": f"Healthy {name} that actually satisfies.", "vibe": "fresh vibrant healthy food"}
+        elif "protein" in angle_lower or "protein-packed" in angle_lower:
+            return {"hook": "40g protein per serving", "desc": f"High-protein {name} for fuel.", "vibe": "athletic nutrition focused"}
+        elif "texture" in angle_lower or "crispy" in angle_lower or "crunch" in angle_lower:
+            return {"hook": "Crispy outside, juicy inside", "desc": f"Perfect texture every single time.", "vibe": "macro food texture detail"}
+        elif "cleanup" in angle_lower or "minimal" in angle_lower or "one-pan" in angle_lower:
+            return {"hook": "One pan, zero regrets", "desc": f"Minimal cleanup with maximum flavor.", "vibe": "clean simple kitchen scene"}
+        elif "budget" in angle_lower or "cheap" in angle_lower or "pantry" in angle_lower:
+            return {"hook": "Feeds 4 for under $10", "desc": f"Budget-friendly {name} that impresses.", "vibe": "simple home cooking elegance"}
+        elif "family" in angle_lower or "kid" in angle_lower or "crowd" in angle_lower:
+            return {"hook": "Picky eaters ask for seconds", "desc": f"Family-favorite {name} everyone loves.", "vibe": "happy family dinner moment"}
+        elif "flavor" in angle_lower or "bold" in angle_lower or "spicy" in angle_lower:
+            return {"hook": "Garlicky, buttery, perfect", "desc": f"Bold flavors, simple steps.", "vibe": "rich aromatic food close-up"}
+        elif "effortless" in angle_lower or "lazy" in angle_lower or "easy" in angle_lower:
+            return {"hook": "Set it and forget it", "desc": f"Hands-off {name} with maximum flavor.", "vibe": "relaxed effortless cooking"}
+        elif "time" in angle_lower or "saver" in angle_lower:
+            return {"hook": "20 minutes start to finish", "desc": f"Time-saving {name} for busy lives.", "vibe": "efficient modern kitchen"}
+        elif "weeknight" in angle_lower or "hero" in angle_lower:
+            return {"hook": "Your new Tuesday night staple", "desc": f"Reliable {name} for weeknight rotation.", "vibe": "cozy weeknight dinner table"}
+        elif "ingredient" in angle_lower or "simple" in angle_lower:
+            return {"hook": "Just 5 ingredients, big payoff", "desc": f"Simple {name} with huge flavor.", "vibe": "minimal ingredient elegance"}
+        else:
+            return {"hook": f"The {name} that changes everything", "desc": f"Best {name} you'll ever make.", "vibe": "appetizing food hero shot"}
     
     return [
-        {"angle": dynamic_angles[i], "hook": fb["hook"], "description": fb["desc"], "vibe_prompt": fb["vibe"]}
-        for i, fb in enumerate(fallback_hooks[:5])
+        {"angle": angle, **hook_for_angle(angle)}
+        for angle in dynamic_angles[:5]
     ]
 
 
