@@ -125,11 +125,14 @@ def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None
     # Determine dynamic angles for this recipe
     dynamic_angles = _extract_dynamic_angles(recipe, trend_context)
     
-    context_lines = [
-        f"- {c.get('title','')} | {c.get('description','')}"[:280]
-        for c in trend_context[:5]
-    ]
-    context_block = "\n".join(context_lines) if context_lines else "- (no trend context found)"
+    # Build rich context from real Pinterest data
+    context_lines = []
+    for c in trend_context[:5]:
+        title = c.get('title', '').strip()
+        desc = c.get('description', '').strip()
+        if title or desc:
+            context_lines.append(f"• {title[:100]} | {desc[:150]}")
+    context_block = "\n".join(context_lines) if context_lines else "No specific Pinterest trends found - use general best practices"
     
     angles_list = "\n".join([f"  {i+1}. {angle}" for i, angle in enumerate(dynamic_angles)])
     
@@ -138,50 +141,62 @@ def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None
     meta_keywords = recipe.get("meta_keywords", "")
     ingredient_names = recipe.get("ingredient_names", "")
     
-    # Extract Pinterest trend language patterns
-    trend_titles = [c.get("title", "") for c in trend_context[:5]]
-    trend_descs = [c.get("description", "") for c in trend_context[:5]]
-    trend_language = " ".join(trend_titles + trend_descs)
+    # Extract real Pinterest trend patterns
+    real_trend_data = []
+    for c in trend_context[:8]:  # More trends for better analysis
+        title = c.get('title', '').strip()
+        desc = c.get('description', '').strip()
+        if title:
+            real_trend_data.append(f"TITLE: {title}")
+        if desc:
+            real_trend_data.append(f"DESC: {desc}")
     
-    prompt = f"""You are a Pinterest marketing expert. Create hooks by COMBINING the food blog's voice with winning Pinterest language.
+    trend_analysis = "\n".join(real_trend_data) if real_trend_data else "No real trend data available"
+    
+    prompt = f"""You are a Pinterest marketing expert. Create hooks by ANALYZING REAL PINTEREST DATA and blending it with the recipe content.
 
-=== SOURCE 1: FOOD BLOG CONTENT ===
-Recipe name: {recipe.get("name","")}
-Blog description: {blog_sample[:400] if blog_sample else "Not extracted"}
-Key ingredients: {ingredient_names if ingredient_names else "Not extracted"}
-Meta keywords: {meta_keywords if meta_keywords else "None"}
+=== RECIPE TO PROMOTE ===
+Recipe: {recipe.get("name","")}
 Time: {recipe.get("time","")} | Benefit: {recipe.get("benefit","")}
+Blog voice: {blog_sample[:300] if blog_sample else "Casual food blog style"}
+Keywords: {meta_keywords[:200] if meta_keywords else "General recipe keywords"}
+Ingredients: {ingredient_names[:200] if ingredient_names else "Standard ingredients"}
 
-=== SOURCE 2: TOP PINTEREST TRENDS FOR THIS RECIPE TYPE ===
-Trending pin titles:
-{trend_titles if trend_titles else "- (no trend data)"}
-
-Trending pin descriptions:
-{trend_descs if trend_descs else "- (no trend data)"}
+=== REAL PINTEREST TREND ANALYSIS ===
+Study these ACTUAL trending pins for similar recipes:
+{trend_analysis}
 
 === YOUR TASK ===
-Create 5 hooks for these angles:
+Create 5 hooks for these angles based on REAL TREND PATTERNS:
 {angles_list}
 
-INSTRUCTIONS:
-1. ANALYZE the blog's writing style from "Blog description" - notice their tone, vocabulary, what they emphasize
-2. EXTRACT winning language patterns from "Top Pinterest Trends" - what words/phrases perform well for similar recipes?
-3. BLEND both sources: Use the blog's voice + Pinterest-proven language structures
+CRITICAL INSTRUCTIONS:
+1. STUDY the real Pinterest titles above - notice what words get clicks
+2. MIRROR successful patterns from the trend data
+3. BLEND with recipe specifics - make it authentic to this recipe
+4. HOOKS must be 6-8 words MAX - punchy and scroll-stopping
+5. DESCRIPTIONS must be 15-25 words - compelling copy for Pinterest
 
-EXAMPLES OF GOOD BLENDING:
-- Blog says "crispy golden chicken" + Pinterest trend "better than takeout" → "Crispy chicken that beats delivery"
-- Blog emphasizes "30 minutes" + Pinterest trend "weeknight hero" → "Your new 30-minute weeknight hero"
-- Blog mentions "kids love it" + Pinterest trend "picky eater approved" → "Finally, picky eaters clean their plates"
+TREND-BASED HOOK FORMULAS (use what you see in the data):
+- If trends say "better than takeout" → Use "Beats [takeout/restaurant]"
+- If trends say "30 minute" → Use "30-minute [recipe type]"
+- If trends say "family favorite" → Use "Family [emotion] [recipe]"
+- If trends say "crispy golden" → Use "[Texture] [result]"
 
-ANGLE → CONTENT RULES:
-- "Lightning-Fast" = speed focus → use blog's time claims + Pinterest urgency words
-- "Health-Boost" = nutrition angle → blend blog's health claims with Pinterest wellness language  
-- "Protein-Packed" = fitness angle → blog's protein info + Pinterest gym/recovery terms
-- "Texture-Perfect" = sensory focus → blog's texture words + Pinterest mouthfeel hooks
-- "Family-Approved" = crowd-pleaser → blog's family notes + Pinterest kid/parent language
+HOOK REQUIREMENTS:
+- 6-8 words maximum
+- Start with action/benefit words
+- Include recipe-specific details
+- Mirror high-performing trend patterns
+
+DESCRIPTION REQUIREMENTS:
+- 15-25 words (much longer than before)
+- Include key SEO keywords
+- Compelling benefit statement
+- Call-to-action or urgency
 
 Return ONLY valid JSON:
-[{{"angle": "...", "hook": "...", "description": "...", "vibe_prompt": "..."}}, ...]
+[{{"angle": "...", "hook": "6-8 word punchy hook", "description": "15-25 word compelling description", "vibe_prompt": "..."}}, ...]
 """
     try:
         print(f"GROQ DEBUG: Sending prompt to Groq...", flush=True)
