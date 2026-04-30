@@ -1569,11 +1569,15 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     Sitemap scraping with active memory de-dup.
     Checks scraped_memory.db before processing each URL.
     """
-    print(f"[Scraper] Starting scrape for: {base_url}")
+    print("=" * 60)
+    print(f"[SCRAPER DEBUG] Starting scrape for: {base_url}")
+    print(f"[SCRAPER DEBUG] Max recipes requested: {max_recipes}")
+    print("=" * 60)
     
     # Validate URL
     if not validate_url(base_url):
-        print(f"[Scraper] Invalid URL format: {base_url}")
+        print(f"[SCRAPER ERROR] Invalid URL format: {base_url}")
+        print(f"[SCRAPER ERROR] URL must include http(s):// and domain (e.g., .com)")
         return []
     
     headers = {
@@ -1585,51 +1589,74 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     }
     
     try:
-        print(f"[Scraper] Fetching sitemap from: {base_url}")
+        print(f"[SCRAPER DEBUG] Attempting sitemap fetch...")
         tree = sitemap_tree_for_homepage(base_url)
         all_pages = list(tree.all_pages())
-        print(f"[Scraper] Found {len(all_pages)} pages in sitemap")
+        print(f"[SCRAPER DEBUG] Sitemap SUCCESS: Found {len(all_pages)} pages")
     except Exception as e:
-        print(f"[Scraper] Sitemap fetch failed: {e}, falling back to direct scraping")
+        print(f"[SCRAPER ERROR] Sitemap fetch failed: {e}")
+        print(f"[SCRAPER DEBUG] Trying fallback: direct homepage scraping")
         try:
             return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
         except Exception as fallback_error:
-            print(f"[Scraper] Fallback scraping also failed: {fallback_error}")
+            print(f"[SCRAPER ERROR] Fallback scraping also failed: {fallback_error}")
+            print(f"[SCRAPER DEBUG] Returning empty list - site may block scrapers")
             return []
 
     recipe_urls = []
     try:
+        print(f"[SCRAPER DEBUG] Filtering {len(all_pages)} pages for recipe URLs...")
         for page in all_pages:
             url = page.url
             if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
                 recipe_urls.append(url)
+                print(f"[SCRAPER DEBUG] Found recipe URL: {url}")
     except Exception as e:
-        print(f"[Scraper] Error filtering recipe URLs: {e}")
+        print(f"[SCRAPER ERROR] Error filtering recipe URLs: {e}")
         return []
     
-    print(f"[Scraper] Filtered {len(recipe_urls)} recipe URLs from {len(all_pages)} total pages")
+    print(f"[SCRAPER DEBUG] Filtered {len(recipe_urls)} recipe URLs from {len(all_pages)} total pages")
+    
+    if len(recipe_urls) == 0:
+        print(f"[SCRAPER WARNING] No recipe URLs found - site may not use standard recipe URL patterns")
+        print(f"[SCRAPER DEBUG] Sample URLs found: {[p.url for p in all_pages[:5]]}")
 
     recipes = []
-    for url in recipe_urls:
+    print(f"[SCRAPER DEBUG] Starting recipe extraction from {len(recipe_urls)} URLs...")
+    
+    for i, url in enumerate(recipe_urls):
         try:
             if len(recipes) >= max_recipes:
+                print(f"[SCRAPER DEBUG] Reached max recipes ({max_recipes}), stopping extraction")
                 break
             if has_url(url):
-                print(f"[Scraper] Skipping already-processed URL: {url}")
+                print(f"[SCRAPER DEBUG] Skipping already-processed URL: {url}")
                 continue
             
-            print(f"[Scraper] Extracting: {url}")
+            print(f"[SCRAPER DEBUG] [{i+1}/{len(recipe_urls)}] Extracting: {url}")
             recipe = extract_with_recipe_scrapers(url, headers)
             mark_url(url)
             
             if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
-                print(f"[Scraper] ✓ Found valid recipe: {recipe['name']}")
+                print(f"[SCRAPER SUCCESS] ✓ Found valid recipe: {recipe['name']}")
                 recipes.append(recipe)
             else:
-                print(f"[Scraper] ✗ Invalid or missing recipe data from: {url}")
+                print(f"[SCRAPER WARNING] ✗ Invalid or missing recipe data from: {url}")
+                print(f"[SCRAPER DEBUG] Recipe data received: {recipe}")
         except Exception as e:
-            print(f"[Scraper] Error processing URL {url}: {e}")
+            print(f"[SCRAPER ERROR] Error processing URL {url}: {e}")
             continue
     
-    print(f"[Scraper] Completed with {len(recipes)} recipes extracted")
+    print("=" * 60)
+    print(f"[SCRAPER SUMMARY] Completed: {len(recipes)} recipes extracted from {len(recipe_urls)} URLs")
+    if recipes:
+        print(f"[SCRAPER SUMMARY] Recipes found:")
+        for r in recipes:
+            print(f"  - {r['name']}")
+    else:
+        print(f"[SCRAPER SUMMARY] NO RECIPES FOUND - Check:")
+        print(f"  1. Site blocks scraping (try different site)")
+        print(f"  2. No recipe pages detected (check URL patterns)")
+        print(f"  3. Recipe format not supported")
+    print("=" * 60)
     return recipes
