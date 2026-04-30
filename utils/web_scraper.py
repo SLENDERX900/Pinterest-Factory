@@ -14,9 +14,6 @@ import time
 from usp.tree import sitemap_tree_for_homepage
 from recipe_scrapers import scrape_html
 
-# STEP 4: Active Memory integration
-from utils.sitemap_memory import has_url, mark_url
-
 def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[dict]:
     """
     Scrape recipe information from a food blog website using sitemap discovery.
@@ -62,6 +59,12 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
         print(f"Found {len(recipe_urls)} potential recipe URLs")
         
         # STEP 4: Filter out already-processed URLs from memory
+        # Import here to avoid module loading issues
+        try:
+            from utils.sitemap_memory import has_url, mark_url
+        except ImportError:
+            from sitemap_memory import has_url, mark_url
+        
         new_urls = [url for url in recipe_urls if not has_url(url)]
         skipped_count = len(recipe_urls) - len(new_urls)
         if skipped_count > 0:
