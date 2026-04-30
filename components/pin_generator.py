@@ -8,12 +8,20 @@ import streamlit as st
 import os
 import requests
 from bs4 import BeautifulSoup
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 from io import BytesIO
 import zipfile
 from datetime import datetime
 import random
 from utils.hf_image_client import generate_tailored_image
+
+
+# ── Pinterest Standard ────────────────────────────────────────────────────────
+PIN_WIDTH = 1000
+PIN_HEIGHT = 1500
+FONT_SIZE_HEADLINE = 130  # Much larger for impact
+FONT_SIZE_SUB = 70
+BRAND_FONT_SIZE = 40
 
 
 # ── Web Scraping Helper ───────────────────────────────────────────────────────
@@ -134,7 +142,18 @@ def clean_hook_text(hook: str) -> str:
     return hook
 
 
-# ── Text Wrapping ───────────────────────────────────────────────────────────
+# ── Text Rendering with Stroke ─────────────────────────────────────────────
+
+def draw_text_with_stroke(draw, text, font, x, y, fill_color, stroke_color, stroke_width=4):
+    """Draw text with outline stroke for better readability on images."""
+    # Draw stroke by offsetting in all directions
+    for dx in range(-stroke_width, stroke_width + 1, 2):
+        for dy in range(-stroke_width, stroke_width + 1, 2):
+            if dx != 0 or dy != 0:
+                draw.text((x + dx, y + dy), text, font=font, fill=stroke_color)
+    # Draw main text
+    draw.text((x, y), text, font=font, fill=fill_color)
+
 
 def wrap_text(text: str, font, max_width: int) -> list[str]:
     """
@@ -163,21 +182,20 @@ def wrap_text(text: str, font, max_width: int) -> list[str]:
     return lines
 
 
-# ── Branding Stamp ─────────────────────────────────────────────────────────
+# ── Branding Watermark ──────────────────────────────────────────────────────
 
-def add_branding_stamp(image: Image.Image, font_base_path: str = None) -> Image.Image:
+def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Image.Image:
     """
-    Add 'nobscooking.com' branding stamp at the bottom center of the image.
-    Uses a semi-transparent black rectangle behind the text for visibility.
+    Add subtle 'nobscooking.com' watermark at bottom of pin.
     """
     draw = ImageDraw.Draw(image)
     
-    # Load bold font for branding
+    # Load font
     try:
         if font_base_path:
-            bold_font_file = os.path.join(font_base_path, 'Montserrat-Bold.ttf')
-            if os.path.exists(bold_font_file):
-                font = ImageFont.truetype(bold_font_file, 32)
+            font_file = os.path.join(font_base_path, 'Montserrat-Medium.ttf')
+            if os.path.exists(font_file):
+                font = ImageFont.truetype(font_file, BRAND_FONT_SIZE)
             else:
                 font = ImageFont.load_default()
         else:
@@ -187,65 +205,55 @@ def add_branding_stamp(image: Image.Image, font_base_path: str = None) -> Image.
     
     domain = "nobscooking.com"
     
-    # Get text bounding box
+    # Get text size
     bbox = font.getbbox(domain)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     
-    # Calculate position (centered horizontally, near bottom)
-    x = (1000 - text_width) // 2
-    y = 1420
+    # Position at bottom with padding
+    x = (PIN_WIDTH - text_width) // 2
+    y = PIN_HEIGHT - text_height - 30
     
-    # Draw semi-transparent black rectangle behind text
-    padding = 10
-    rect_x1 = x - padding
-    rect_y1 = y - padding
-    rect_x2 = x + text_width + padding
-    rect_y2 = y + text_height + padding
-    
-    # Create overlay for semi-transparent rectangle
-    overlay = Image.new('RGBA', (1000, 1500), (0, 0, 0, 0))
-    overlay_draw = ImageDraw.Draw(overlay)
-    overlay_draw.rectangle([rect_x1, rect_y1, rect_x2, rect_y2], fill=(0, 0, 0, 128))  # 50% opacity black
-    
-    # Composite overlay onto image
-    image = Image.alpha_composite(image.convert('RGBA'), overlay).convert('RGB')
-    
-    # Draw bold orange text on top
-    draw = ImageDraw.Draw(image)
-    draw.text((x, y), domain, font=font, fill=(204, 85, 0))  # Terracotta orange
+    # Draw with subtle white stroke on dark
+    draw_text_with_stroke(draw, domain, font, x, y, 
+                         fill_color=(255, 255, 255), 
+                         stroke_color=(0, 0, 0), 
+                         stroke_width=3)
     
     return image
 
 
 # ── Template Functions ────────────────────────────────────────────────────────
 
-def apply_template_dark_gradient(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
+def apply_template_hero_top(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
     """
-    Template 1: Dark Gradient overlay.
-    Crop to 1000x1500, add black gradient from top to middle, draw text in white.
+    Template 1: Hero Text at Top.
+    Large bold text at top with gradient fade, food image below.
+    Clean, modern Pinterest style.
     """
-    # Crop to 1000x1500
-    image = ImageOps.fit(image, (1000, 1500), Image.Resampling.LANCZOS)
+    # Start with full-size image
+    img = ImageOps.fit(image, (PIN_WIDTH, PIN_HEIGHT), Image.Resampling.LANCZOS)
     
-    # Create gradient overlay
-    overlay = Image.new('RGBA', (1000, 1500), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
+    # Create gradient overlay at top for text readability
+    overlay = Image.new('RGBA', (PIN_WIDTH, PIN_HEIGHT), (0, 0, 0, 0))
+    draw_ov = ImageDraw.Draw(overlay)
     
-    # Draw gradient from top (rich black 85% opacity) to middle (0% opacity)
-    for y in range(750):
-        alpha = int(217 * (1 - y / 750))  # 217 = 85% of 255
-        draw.line([(0, y), (1000, y)], fill=(0, 0, 0, alpha))
+    # Strong gradient from top (60% of image height)
+    gradient_height = int(PIN_HEIGHT * 0.6)
+    for y in range(gradient_height):
+        # Fade from 85% black at top to 0% at bottom of gradient area
+        alpha = int(217 * (1 - y / gradient_height))
+        draw_ov.line([(0, y), (PIN_WIDTH, y)], fill=(0, 0, 0, alpha))
     
-    # Composite gradient onto image
-    image = Image.alpha_composite(image.convert('RGBA'), overlay).convert('RGB')
+    # Composite
+    img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
     
-    # Load font (Black for maximum impact on gradient)
+    # Load large bold font
     try:
         if font_base_path:
             font_file = os.path.join(font_base_path, 'Montserrat-Black.ttf')
             if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, 90)
+                font = ImageFont.truetype(font_file, FONT_SIZE_HEADLINE)
             else:
                 font = ImageFont.load_default()
         else:
@@ -253,100 +261,54 @@ def apply_template_dark_gradient(image: Image.Image, hook: str, font_base_path: 
     except:
         font = ImageFont.load_default()
     
-    # Draw wrapped hook text in white in top third with stroke
-    draw = ImageDraw.Draw(image)
-    hook_lines = wrap_text(hook, font, 900)
-    y_offset = 100
-    for line in hook_lines:
-        draw.text((50, y_offset), line, font=font, fill=(255, 255, 255))
-        y_offset += 100
+    # Draw text with stroke at top
+    draw = ImageDraw.Draw(img)
+    hook_lines = wrap_text(hook, font, PIN_WIDTH - 100)
     
-    # Add branding stamp
-    image = add_branding_stamp(image, font_base_path)
+    y_offset = 80
+    line_spacing = FONT_SIZE_HEADLINE + 20
     
-    return image
-
-
-def apply_template_center_badge(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
-    """
-    Template 2: Center Badge.
-    Crop to 1000x1500, draw colored rectangle in center, draw text centered.
-    """
-    # Crop to 1000x1500
-    image = ImageOps.fit(image, (1000, 1500), Image.Resampling.LANCZOS)
-    
-    # Create colored rectangle overlay (deep red with 80% opacity)
-    overlay = Image.new('RGBA', (1000, 1500), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-    
-    # Draw centered rectangle (dark charcoal with 85% opacity)
-    badge_width, badge_height = 800, 400
-    badge_x = (1000 - badge_width) // 2
-    badge_y = (1500 - badge_height) // 2
-    draw.rectangle([badge_x, badge_y, badge_x + badge_width, badge_y + badge_height], 
-                  fill=(30, 30, 30, 217))  # Dark charcoal with 85% opacity
-    
-    # Composite onto image
-    image = Image.alpha_composite(image.convert('RGBA'), overlay).convert('RGB')
-    
-    # Load font (Bold for readability on badge)
-    try:
-        if font_base_path:
-            font_file = os.path.join(font_base_path, 'Montserrat-Bold.ttf')
-            if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, 80)
-            else:
-                font = ImageFont.load_default()
-        else:
-            font = ImageFont.load_default()
-    except:
-        font = ImageFont.load_default()
-    
-    # Draw wrapped text centered in badge with stroke
-    draw = ImageDraw.Draw(image)
-    hook_lines = wrap_text(hook, font, 750)
-    
-    # Calculate vertical centering
-    total_height = len(hook_lines) * 90
-    start_y = badge_y + (badge_height - total_height) // 2
-    
-    for i, line in enumerate(hook_lines):
+    for line in hook_lines[:3]:  # Max 3 lines
         bbox = font.getbbox(line)
         text_width = bbox[2] - bbox[0]
-        text_x = badge_x + (badge_width - text_width) // 2
-        draw.text((text_x, start_y + (i * 90)), line, font=font, fill=(255, 255, 255))
+        x = (PIN_WIDTH - text_width) // 2  # Center horizontally
+        
+        draw_text_with_stroke(draw, line, font, x, y_offset,
+                            fill_color=(255, 255, 255),
+                            stroke_color=(0, 0, 0),
+                            stroke_width=6)
+        y_offset += line_spacing
     
-    # Add branding stamp
-    image = add_branding_stamp(image, font_base_path)
+    # Add watermark
+    img = add_branding_watermark(img, font_base_path)
     
-    return image
+    return img
 
 
-def apply_template_split_screen(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
+def apply_template_bottom_banner(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
     """
-    Template 3: Split Screen.
-    Create 1000x1500 blank, crop photo to 1000x750 for bottom half, 
-    fill top half with color, draw text in top half.
+    Template 2: Bottom Banner.
+    Food image fills top, text on solid color banner at bottom.
+    Great for showing off the food.
     """
-    # Create blank 1000x1500 image
-    result = Image.new('RGB', (1000, 1500))
+    # Create canvas
+    img = Image.new('RGB', (PIN_WIDTH, PIN_HEIGHT))
     
-    # Crop photo to 1000x750
-    photo = ImageOps.fit(image, (1000, 750), Image.Resampling.LANCZOS)
+    # Resize and crop food image to top 70%
+    food_img = ImageOps.fit(image, (PIN_WIDTH, int(PIN_HEIGHT * 0.7)), Image.Resampling.LANCZOS)
+    img.paste(food_img, (0, 0))
     
-    # Paste photo into bottom half
-    result.paste(photo, (0, 750))
+    # Draw solid color banner at bottom (30%)
+    draw = ImageDraw.Draw(img)
+    banner_color = (204, 85, 0)  # Warm terracotta
+    draw.rectangle([0, int(PIN_HEIGHT * 0.7), PIN_WIDTH, PIN_HEIGHT], fill=banner_color)
     
-    # Fill top half with warm terracotta color
-    draw = ImageDraw.Draw(result)
-    draw.rectangle([0, 0, 1000, 750], fill=(204, 85, 0))  # Terracotta/burnt orange
-    
-    # Load font (Medium for cleaner look with photo)
+    # Load font
     try:
         if font_base_path:
-            font_file = os.path.join(font_base_path, 'Montserrat-Medium.ttf')
+            font_file = os.path.join(font_base_path, 'Montserrat-ExtraBold.ttf')
             if os.path.exists(font_file):
-                font = ImageFont.truetype(font_file, 90)
+                font = ImageFont.truetype(font_file, FONT_SIZE_SUB)
             else:
                 font = ImageFont.load_default()
         else:
@@ -354,23 +316,90 @@ def apply_template_split_screen(image: Image.Image, hook: str, font_base_path: s
     except:
         font = ImageFont.load_default()
     
-    # Draw wrapped text centered in top half with stroke
-    hook_lines = wrap_text(hook, font, 900)
+    # Draw text in banner area
+    hook_lines = wrap_text(hook, font, PIN_WIDTH - 80)
     
-    # Calculate vertical centering in top half
-    total_height = len(hook_lines) * 100
-    start_y = (750 - total_height) // 2
+    banner_top = int(PIN_HEIGHT * 0.7)
+    banner_height = int(PIN_HEIGHT * 0.3)
     
-    for i, line in enumerate(hook_lines):
+    total_text_height = len(hook_lines[:2]) * (FONT_SIZE_SUB + 15)
+    y_offset = banner_top + (banner_height - total_text_height) // 2
+    
+    for line in hook_lines[:2]:  # Max 2 lines
         bbox = font.getbbox(line)
         text_width = bbox[2] - bbox[0]
-        text_x = (1000 - text_width) // 2
-        draw.text((text_x, start_y + (i * 100)), line, font=font, fill=(255, 255, 255))
+        x = (PIN_WIDTH - text_width) // 2
+        
+        draw_text_with_stroke(draw, line, font, x, y_offset,
+                            fill_color=(255, 255, 255),
+                            stroke_color=(0, 0, 0),
+                            stroke_width=4)
+        y_offset += FONT_SIZE_SUB + 15
     
-    # Add branding stamp
-    result = add_branding_stamp(result, font_base_path)
+    # Add watermark
+    img = add_branding_watermark(img, font_base_path)
     
-    return result
+    return img
+
+
+def apply_template_side_overlay(image: Image.Image, hook: str, font_base_path: str = None) -> Image.Image:
+    """
+    Template 3: Side Overlay.
+    Food image on right, colored overlay panel on left with text.
+    Modern asymmetrical design.
+    """
+    # Create canvas
+    img = Image.new('RGB', (PIN_WIDTH, PIN_HEIGHT))
+    
+    # Food image on right side (65% width)
+    food_width = int(PIN_WIDTH * 0.65)
+    food_img = ImageOps.fit(image, (food_width, PIN_HEIGHT), Image.Resampling.LANCZOS)
+    img.paste(food_img, (PIN_WIDTH - food_width, 0))
+    
+    # Left panel with gradient
+    overlay = Image.new('RGBA', (PIN_WIDTH, PIN_HEIGHT), (0, 0, 0, 0))
+    draw_ov = ImageDraw.Draw(overlay)
+    
+    panel_width = int(PIN_WIDTH * 0.45)
+    # Gradient from left (solid) to right (transparent where food starts)
+    for x in range(panel_width):
+        alpha = int(230 * (1 - x / panel_width * 0.3))  # Keep mostly opaque
+        draw_ov.line([(x, 0), (x, PIN_HEIGHT)], fill=(40, 40, 40, alpha))
+    
+    img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
+    
+    # Load font
+    try:
+        if font_base_path:
+            font_file = os.path.join(font_base_path, 'Montserrat-Black.ttf')
+            if os.path.exists(font_file):
+                font = ImageFont.truetype(font_file, 100)
+            else:
+                font = ImageFont.load_default()
+        else:
+            font = ImageFont.load_default()
+    except:
+        font = ImageFont.load_default()
+    
+    # Draw text on left panel
+    draw = ImageDraw.Draw(img)
+    hook_lines = wrap_text(hook, font, panel_width - 60)
+    
+    # Vertically center text
+    total_height = len(hook_lines[:3]) * 120
+    y_offset = (PIN_HEIGHT - total_height) // 2
+    
+    for line in hook_lines[:3]:  # Max 3 lines
+        draw_text_with_stroke(draw, line, font, 40, y_offset,
+                            fill_color=(255, 255, 255),
+                            stroke_color=(0, 0, 0),
+                            stroke_width=5)
+        y_offset += 120
+    
+    # Add watermark at bottom right
+    img = add_branding_watermark(img, font_base_path)
+    
+    return img
 
 
 # ── Main Render Function ─────────────────────────────────────────────────────
@@ -401,9 +430,9 @@ def render_pin_generator():
         with st.spinner("Fetching images and generating pins..."):
             generated_images = []
             template_functions = [
-                apply_template_dark_gradient,
-                apply_template_center_badge,
-                apply_template_split_screen
+                apply_template_hero_top,
+                apply_template_bottom_banner,
+                apply_template_side_overlay
             ]
             
             print("DEBUG: Starting pin generation...")

@@ -7,13 +7,12 @@ Columns: Recipe_Name, Angle_Type, Hook_Text, Search_Description
 import io
 import pandas as pd
 import streamlit as st
-from utils.groq_client import ANGLES
 
 
 def _build_dataframe() -> pd.DataFrame:
     """
     Flatten session_state hooks + descriptions into a Canva-ready DataFrame.
-    One row per hook (5 rows per recipe).
+    One row per hook (dynamic angles per recipe).
     """
     recipes = st.session_state.get("recipes", [])
     hooks = st.session_state.get("hooks", {})
@@ -25,8 +24,9 @@ def _build_dataframe() -> pd.DataFrame:
         recipe_hooks = hooks.get(name, {})
         description = descriptions.get(name, "")
 
-        for angle in ANGLES:
-            hook_text = recipe_hooks.get(angle, "").strip()
+        # Iterate over actual angles present (dynamic)
+        for angle, hook_text in recipe_hooks.items():
+            hook_text = hook_text.strip()
             if not hook_text:
                 continue
             rows.append({

@@ -10,7 +10,6 @@ from utils.groq_client import (
     generate_hooks,
     generate_description,
     generate_hook_packages,
-    ANGLES,
     GROQ_MODEL,
 )
 from utils.pinterest_trends import collect_trending_pins
@@ -131,7 +130,9 @@ def render_ai_engine():
                 
                 st.session_state.hooks[name] = cleaned_hooks
             except Exception as e:
-                st.session_state.hooks[name] = {a: f"[Generation failed: {e}]" for a in ANGLES}
+                # Generate fallback hooks dynamically
+                fallback_angles = ["Time-Saver", "Effortless", "Weeknight-Hero", "Ingredient-Win", "Core-Method"]
+                st.session_state.hooks[name] = {a: f"[Generation failed: {e}]" for a in fallback_angles}
                 st.session_state.hook_packages[name] = []
 
             # Description
@@ -153,13 +154,22 @@ def render_ai_engine():
 
     st.subheader("Edit hooks before exporting")
     st.caption("All changes are saved automatically. These exact texts will appear in the Canva CSV.")
+    st.caption("🎯 Angles are dynamically generated based on recipe content + Pinterest trends")
 
+    # Dynamic angle tips based on common categories
     ANGLE_TIPS = {
-        "Time-saver": "Lead with the time. Under 8 words.",
-        "Lazy Dinner": "Effortless, minimal effort framing. Under 8 words.",
-        "Weeknight Hero": "Busy/weeknight framing. Under 8 words.",
-        "Ingredient-Count": "Lead with ingredient count. Under 8 words.",
-        "Core Method": "Key technique or final result. Under 8 words.",
+        "Lightning-Fast": "Lead with the time. Under 8 words.",
+        "Effortless": "Effortless, minimal effort framing. Under 8 words.",
+        "Health-Boost": "Highlight nutrition benefits. Under 8 words.",
+        "Protein-Packed": "Emphasize protein content. Under 8 words.",
+        "Texture-Perfect": "Focus on texture (crispy, juicy). Under 8 words.",
+        "Minimal-Cleanup": "One-pan, sheet-pan angle. Under 8 words.",
+        "Carb-Comfort": "Comfort food angle. Under 8 words.",
+        "Family-Approved": "Kid/family friendly. Under 8 words.",
+        "Slow-Cooked": "Flavor depth from slow cooking. Under 8 words.",
+        "Big-Flavor": "Bold flavor emphasis. Under 8 words.",
+        "Fresh-Bright": "Fresh, light, healthy. Under 8 words.",
+        "Budget-Smart": "Affordable/pantry angle. Under 8 words.",
     }
 
     for recipe in recipes:
@@ -169,17 +179,18 @@ def render_ai_engine():
 
         with st.expander(f"**{name}** — {recipe.get('time', '')} · {recipe.get('benefit', '')}", expanded=True):
 
-            # 5 hooks in a 2-column grid
+            # Dynamic hooks display - show all generated hooks
             col_left, col_right = st.columns(2)
             cols = [col_left, col_right, col_left, col_right, col_left]
 
-            for i, angle in enumerate(ANGLES):
+            angles = list(hooks.keys())
+            for i, angle in enumerate(angles):
                 current = hooks.get(angle, "")
                 new_val = cols[i].text_input(
                     label=f"**{angle}**",
                     value=current,
                     key=f"hook_{name}_{angle}",
-                    help=ANGLE_TIPS.get(angle, ""),
+                    help=ANGLE_TIPS.get(angle, "Under 8 words, punchy and specific"),
                     max_chars=60,
                 )
                 # Word count warning

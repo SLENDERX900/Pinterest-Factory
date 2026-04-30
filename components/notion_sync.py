@@ -8,7 +8,6 @@ import os
 import time
 import requests
 import streamlit as st
-from utils.groq_client import ANGLES
 from utils.scheduler import build_schedule_slots, schedule_pin, update_notion_item_scheduled
 
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
@@ -261,7 +260,7 @@ Capitalisation matters. Copy the names exactly as shown.
 |---|---|---|
 | `Recipe Name` | **Title** | Every Notion database has this by default — just rename it |
 | `Hook` | **Text** (Rich text) | The pin hook text |
-| `Angle` | **Select** | Add options: Time-saver, Lazy Dinner, Weeknight Hero, Ingredient-Count, Core Method |
+| `Angle` | **Select** | Dynamic angles based on recipe content (e.g., Lightning-Fast, Protein-Packed, Minimal-Cleanup) |
 | `Description` | **Text** (Rich text) | SEO description |
 | `Status` | **Select** | Add options: To Canva, In Canva, Scheduled, Posted |
 | `Recipe URL` | **URL** | Recipe page link |
@@ -281,12 +280,14 @@ Capitalisation matters. Copy the names exactly as shown.
 - Click `+` at the right of the column headers
 - Select the correct type for each
 
-**4. For `Angle` Select — add these exact options:**
-- `Time-saver`
-- `Lazy Dinner`
-- `Weeknight Hero`
-- `Ingredient-Count`
-- `Core Method`
+**4. For `Angle` Select — these are dynamically generated based on recipe:**
+Common examples include:
+- `Lightning-Fast` · `Effortless` · `Health-Boost`
+- `Protein-Packed` · `Texture-Perfect` · `Minimal-Cleanup`
+- `Carb-Comfort` · `Family-Approved` · `Slow-Cooked`
+- `Big-Flavor` · `Fresh-Bright` · `Budget-Smart`
+
+_Angles are determined by recipe characteristics + Pinterest trends_
 
 **5. For `Status` Select — add these options:**
 - `To Canva`
