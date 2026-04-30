@@ -413,18 +413,26 @@ def smart_scrape_website(website_url: str):
 
 
 def load_from_memory():
-    """Load recipes from current session state for selection."""
+    """Load recipes from scraped results for selection."""
+    # First check scraped_recipes (from recent scraping)
+    scraped_recipes = st.session_state.get('scraped_recipes', [])
+    
+    # Then check current recipes (from locked batch)
     current_recipes = st.session_state.get('recipes', [])
     
-    if not current_recipes:
-        st.warning("No recipes found in current session. Try scraping some recipes first.")
+    # Use whichever has recipes, preferring scraped_recipes
+    available_recipes = scraped_recipes if scraped_recipes else current_recipes
+    
+    if not available_recipes:
+        st.warning("No recipes found in memory. Try scraping some recipes first.")
         return
     
-    st.info(f"📋 Found {len(current_recipes)} recipes in current session. Select which ones to load:")
+    source = "recently scraped" if scraped_recipes else "current batch"
+    st.info(f"📋 Found {len(available_recipes)} recipes in {source}. Select which ones to load:")
     
     # Show recipes with selection checkboxes
     selected_recipes = []
-    for i, recipe in enumerate(current_recipes):
+    for i, recipe in enumerate(available_recipes):
         col1, col2 = st.columns([4, 1])
         with col1:
             checkbox_key = f"load_memory_{i}_{hash(recipe.get('url', '')) % 10000}"
