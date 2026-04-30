@@ -297,8 +297,8 @@ def render_intake():
                         else:
 
                             st.error("No recipes found. Please check the URL and try again.")
-
                             st.info("Common causes: Site blocks scrapers, no sitemap found, or unsupported recipe format. Check the URL and try a different food blog.")
+                            st.info("Debug info: Check the terminal logs for detailed error messages from the scraper.")
 
                     except Exception as e:
 

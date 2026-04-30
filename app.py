@@ -15,17 +15,21 @@ os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 CHROMA_DIR = Path("data/chroma")
 if CHROMA_DIR.exists():
     try:
-        # Check if it's too large or potentially corrupted (LOWERED to 20MB)
+        # Check if it's too large or potentially corrupted (LOWERED to 10MB)
         total_size = sum(f.stat().st_size for f in CHROMA_DIR.rglob('*') if f.is_file())
-        if total_size > 20 * 1024 * 1024:  # > 20MB - more aggressive
+        if total_size > 10 * 1024 * 1024:  # > 10MB - very aggressive
             shutil.rmtree(CHROMA_DIR, ignore_errors=True)
-            print("Cleared large ChromaDB cache (>20MB) on startup")
+            print("Cleared large ChromaDB cache (>10MB) on startup")
         # Also check for corrupted LevelDB files
         elif any(f.suffix == '.ldb' for f in CHROMA_DIR.rglob('*')):
             # LevelDB files present but DB might be corrupted
-            if total_size > 5 * 1024 * 1024:  # If over 5MB with ldb files, could be corrupted
+            if total_size > 2 * 1024 * 1024:  # If over 2MB with ldb files, could be corrupted
                 shutil.rmtree(CHROMA_DIR, ignore_errors=True)
                 print("Cleared potentially corrupted ChromaDB cache on startup")
+        # Additional check: if any .ldb files exist at all, clear them
+        elif any(f.suffix == '.ldb' for f in CHROMA_DIR.rglob('*')):
+            shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+            print("Cleared ChromaDB with LevelDB files on startup")
     except Exception as e:
         print(f"Could not check ChromaDB: {e}")
         # Force clear if we can't even check

@@ -25,7 +25,8 @@ EMBED_MODEL = "all-MiniLM-L6-v2"
 MAX_COLLECTION_SIZE = 200  # Reduced from 500 for tighter memory control
 
 # Detect if running on Streamlit Cloud (no persistent storage available)
-IS_STREAMLIT_CLOUD = os.getenv("STREAMLIT_SERVER_PORT") is not None or os.getenv("STREAMLIT_SHARING_MODE") is not None
+# Force ephemeral mode to prevent disk space errors
+IS_STREAMLIT_CLOUD = True  # Always use in-memory mode for stability
 
 _embedder = None
 _collection = None
