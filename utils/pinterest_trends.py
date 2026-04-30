@@ -36,51 +36,85 @@ def _extract_keywords(query: str) -> str:
     return query
 
 
+# Global flag to track installation status
+_playwright_installing = False
+_playwright_ready = False
+
 def _install_playwright_if_needed():
     """Lazy install Playwright package and browsers only when scraping is needed."""
+    global _playwright_installing, _playwright_ready
+    
     import subprocess
     import os
     from pathlib import Path
+    import threading
+    
+    # If already ready, return immediately
+    if _playwright_ready:
+        return True
+    
+    # If currently installing, wait for completion
+    if _playwright_installing:
+        # Wait up to 10 seconds for installation to complete
+        for _ in range(20):
+            time.sleep(0.5)
+            if _playwright_ready:
+                return True
+        return False
     
     # Check if browsers are already installed
     cache_dir = Path.home() / ".cache" / "ms-playwright"
     if cache_dir.exists() and any(cache_dir.glob("chromium*")):
+        _playwright_ready = True
         return True
     
-    try:
-        # First install the playwright package if not available
+    # Start installation in background
+    def install_in_background():
+        global _playwright_installing, _playwright_ready
+        
         try:
-            import playwright
-        except ImportError:
-            print("Installing Playwright package...")
+            _playwright_installing = True
+            
+            # First install the playwright package if not available
+            try:
+                import playwright
+            except ImportError:
+                print("Installing Playwright package...")
+                result = subprocess.run(
+                    ["pip", "install", "playwright"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                if result.returncode != 0:
+                    print(f"Failed to install Playwright package: {result.stderr}")
+                    return
+            
+            # Then install the browsers
+            print("Installing Playwright browsers for Pinterest scraping...")
             result = subprocess.run(
-                ["pip", "install", "playwright"],
+                ["python", "-m", "playwright", "install", "chromium"],
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=180
             )
-            if result.returncode != 0:
-                print(f"Failed to install Playwright package: {result.stderr}")
-                return False
-        
-        # Then install the browsers
-        print("Installing Playwright browsers for Pinterest scraping...")
-        result = subprocess.run(
-            ["python", "-m", "playwright", "install", "chromium"],
-            capture_output=True,
-            text=True,
-            timeout=180
-        )
-        
-        if result.returncode == 0:
-            print("Playwright Chromium installed successfully")
-            return True
-        else:
-            print(f"Playwright browsers install failed: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"Playwright installation error: {e}")
-        return False
+            
+            if result.returncode == 0:
+                print("Playwright Chromium installed successfully")
+                _playwright_ready = True
+            else:
+                print(f"Playwright browsers install failed: {result.stderr}")
+        except Exception as e:
+            print(f"Playwright installation error: {e}")
+        finally:
+            _playwright_installing = False
+    
+    # Start background installation
+    thread = threading.Thread(target=install_in_background, daemon=True)
+    thread.start()
+    
+    # Don't wait for installation to complete
+    return False
 
 
 def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[list[dict]]:
@@ -88,8 +122,11 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
     Use Playwright to scrape Pinterest search results.
     Returns None if Playwright fails or is not available.
     """
-    # Try to install browsers if not available
-    if not _install_playwright_if_needed():
+    # Check if Playwright is ready
+    if not _playwright_ready:
+        # Trigger installation if needed, but don't wait
+        _install_playwright_if_needed()
+        # Return None for now - will work on next request
         return None
     
     try:
