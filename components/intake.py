@@ -273,7 +273,7 @@ def render_intake():
             st.info(f"📝 **Memory Status:** {memory_count} URLs already processed. Smart scraping will only update new or changed recipes.")
         
         # Scrape buttons
-        col_smart, col_force, col_clear = st.columns([2, 1, 1])
+        col_smart, col_force, col_memory, col_clear = st.columns([2, 1, 1, 1])
         
         with col_smart:
             if st.button("🧠 Smart Scrape", disabled=not website_url, width='stretch', help="Only scrape new/updated recipes"):
@@ -282,6 +282,10 @@ def render_intake():
         with col_force:
             if st.button("🔄 Force Scrape", disabled=not website_url, width='stretch', help="Re-scrape all recipes"):
                 force_scrape_website(website_url)
+        
+        with col_memory:
+            if st.button("📋 Load Memory", width='stretch', help="Load recipes from current session"):
+                load_from_memory()
         
         with col_clear:
             if st.button("🗑️ Clear Memory", help="Clear scraper memory to re-scrape all URLs", width='stretch'):
@@ -323,36 +327,29 @@ def smart_scrape_website(website_url: str):
                 from utils.web_scraper import scrape_recipes_from_urls
                 new_recipes = scrape_recipes_from_urls(new_urls)
             
-            # Show existing recipes for review and selection
+            # Show existing recipes from memory for selection
             if existing_urls:
-                st.info(f"📋 Found {len(existing_urls)} existing recipes. Select which ones to load:")
+                st.info(f"📋 Found {len(existing_urls)} recipes in memory. Select which ones to load:")
                 
-                # Get existing recipes data from current session or scrape them
-                existing_recipes_data = []
+                # Get recipes that are already in session state (previously scraped)
                 current_recipes = {r.get('url'): r for r in st.session_state.get('recipes', [])}
                 
+                # Show recipes already available in session
+                available_recipes = []
                 for url in existing_urls:
                     if url in current_recipes:
-                        existing_recipes_data.append(current_recipes[url])
-                    else:
-                        # Try to get from memory by scraping this URL
-                        try:
-                            recipe_data = scrape_recipes_from_urls([url])
-                            if recipe_data:
-                                existing_recipes_data.extend(recipe_data)
-                        except:
-                            pass
+                        available_recipes.append(current_recipes[url])
                 
-                if existing_recipes_data:
-                    # Show existing recipes with selection checkboxes
-                    st.subheader("� Select Existing Recipes to Load")
+                if available_recipes:
+                    st.subheader("📋 Select Recipes to Load from Memory")
                     
+                    # Show available recipes with selection checkboxes
                     selected_existing = []
-                    for i, recipe in enumerate(existing_recipes_data):
+                    for i, recipe in enumerate(available_recipes):
                         col1, col2 = st.columns([4, 1])
                         with col1:
                             # Create a unique key for each checkbox
-                            checkbox_key = f"select_existing_{i}_{hash(recipe.get('url', '')) % 10000}"
+                            checkbox_key = f"select_memory_{i}_{hash(recipe.get('url', '')) % 10000}"
                             selected = st.checkbox(
                                 f"**{recipe.get('name', 'Unknown Recipe')}** - {recipe.get('time', 'No time')}",
                                 key=checkbox_key,
@@ -363,15 +360,18 @@ def smart_scrape_website(website_url: str):
                         with col2:
                             st.write(f"📌 {recipe.get('benefit', 'No benefit')}")
                     
-                    # Load selected existing recipes
+                    # Load selected recipes into scraped_recipes for normal selection flow
                     if selected_existing:
                         if st.button(f"📥 Load {len(selected_existing)} Selected Recipes", type="primary"):
                             st.session_state.scraped_recipes = selected_existing
+                            st.session_state.show_scraper = True
                             st.success(f"✅ Ready to load {len(selected_existing)} recipes into batch!")
                             st.rerun()
+                else:
+                    st.warning("No recipes found in current session. Try scraping first or use Force Scrape.")
                 
                 # Combine with any new recipes found
-                all_recipes = new_recipes + existing_recipes_data
+                all_recipes = new_recipes + available_recipes
             else:
                 all_recipes = new_recipes
                 
@@ -379,25 +379,59 @@ def smart_scrape_website(website_url: str):
                 st.success(f"✅ Total recipes available: {len(all_recipes)}")
             
             if all_recipes:
-                # Add scraped recipes to the selection interface
+                # Add to scraped_recipes for the normal selection interface
                 st.session_state.scraped_recipes = all_recipes
                 st.session_state.show_scraper = True
                 
-                # Also add to current recipes if user wants to keep them
-                current_recipes = st.session_state.get('recipes', [])
-                if current_recipes:
-                    st.info(f"✅ Found {len(all_recipes)} recipes! You can select which ones to add to your current batch of {len(current_recipes)} recipes.")
+                current_batch = st.session_state.get('recipes', [])
+                if current_batch:
+                    st.info(f"✅ Found {len(all_recipes)} recipes! You can select which ones to add to your current batch of {len(current_batch)} recipes.")
                 else:
                     st.info(f"✅ Found {len(all_recipes)} recipes! Select which ones to add to your batch.")
                 
                 st.rerun()
             else:
-                st.warning("No new recipes found.")
+                st.warning("No recipes found in memory. Try scraping first or use Force Scrape.")
                 
         except Exception as e:
             st.error(f"Smart scraping failed: {str(e)}")
             with st.expander("Debug details"):
                 st.code(traceback.format_exc())
+
+
+def load_from_memory():
+    """Load recipes from current session state for selection."""
+    current_recipes = st.session_state.get('recipes', [])
+    
+    if not current_recipes:
+        st.warning("No recipes found in current session. Try scraping some recipes first.")
+        return
+    
+    st.info(f"📋 Found {len(current_recipes)} recipes in current session. Select which ones to load:")
+    
+    # Show recipes with selection checkboxes
+    selected_recipes = []
+    for i, recipe in enumerate(current_recipes):
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            checkbox_key = f"load_memory_{i}_{hash(recipe.get('url', '')) % 10000}"
+            selected = st.checkbox(
+                f"**{recipe.get('name', 'Unknown Recipe')}** - {recipe.get('time', 'No time')}",
+                key=checkbox_key,
+                help=f"URL: {recipe.get('url', 'No URL')}"
+            )
+            if selected:
+                selected_recipes.append(recipe)
+        with col2:
+            st.write(f"📌 {recipe.get('benefit', 'No benefit')}")
+    
+    # Load selected recipes
+    if selected_recipes:
+        if st.button(f"📥 Load {len(selected_recipes)} Selected Recipes", type="primary"):
+            st.session_state.scraped_recipes = selected_recipes
+            st.session_state.show_scraper = True
+            st.success(f"✅ Ready to load {len(selected_recipes)} recipes into batch!")
+            st.rerun()
 
 
 def force_scrape_website(website_url: str):
