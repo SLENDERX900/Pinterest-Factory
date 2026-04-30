@@ -21,7 +21,7 @@ PIN_WIDTH = 1000
 PIN_HEIGHT = 1500
 FONT_SIZE_HEADLINE = 130  # Much larger for impact
 FONT_SIZE_SUB = 70
-BRAND_FONT_SIZE = 28  # Small but readable as requested
+BRAND_FONT_SIZE = 50  # Much larger for visibility with default font
 
 
 # ── Web Scraping Helper ───────────────────────────────────────────────────────
