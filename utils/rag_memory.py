@@ -5,6 +5,7 @@ Local ChromaDB memory for Pinterest trend context.
 from __future__ import annotations
 
 import hashlib
+import uuid
 from pathlib import Path
 
 try:
@@ -85,7 +86,9 @@ def store_trending_pins(pins: list[dict]) -> int:
         text = f"{pin.get('title', '')}\n{pin.get('description', '')}".strip()
         if not text:
             continue
-        pid = hashlib.sha1(f"{text}|{pin.get('pin_url','')}".encode("utf-8")).hexdigest()
+        # Generate a valid UUID based on the content hash
+        content_hash = hashlib.sha256(f"{text}|{pin.get('pin_url','')}".encode("utf-8")).hexdigest()
+        pid = str(uuid.UUID(hashlib.sha256(content_hash.encode()).hexdigest()[0:32]))
         texts.append(text)
         ids.append(pid)
         metadatas.append(
