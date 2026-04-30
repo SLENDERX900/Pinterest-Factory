@@ -168,26 +168,75 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
             print("PLAYWRIGHT DEBUG: Creating browser instance...", flush=True)
             browser = p.chromium.launch(
                 headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                args=[
+                    '--no-sandbox', 
+                    '--disable-setuid-sandbox', 
+                    '--disable-dev-shm-usage',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--ignore-certificate-errors',
+                    '--ignore-ssl-errors',
+                    '--ignore-certificate-errors-spki-list'
+                ]
             )
             print("PLAYWRIGHT DEBUG: Browser launched successfully", flush=True)
-            print("PLAYWRIGHT DEBUG: Creating browser context...", flush=True)
+            print("PLAYWRIGHT DEBUG: Creating stealth context...", flush=True)
             context = browser.new_context(
                 user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080}
+                viewport={'width': 1920, 'height': 1080},
+                ignore_https_errors=True,
+                java_script_enabled=True
             )
+            
+            # Add stealth scripts to avoid detection
+            context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined,
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en'],
+                });
+                window.chrome = {
+                    runtime: {},
+                };
+            """)
+            print("PLAYWRIGHT DEBUG: Stealth context created", flush=True)
             print("PLAYWRIGHT DEBUG: Context created, creating page...", flush=True)
             page = context.new_page()
             print("PLAYWRIGHT DEBUG: Page created, navigating to Pinterest...", flush=True)
             
-            # Navigate to Pinterest search
-            print(f"PLAYWRIGHT DEBUG: Navigating to: {search_url}", flush=True)
-            page.goto(search_url, wait_until='networkidle', timeout=120000)  # 2 minutes
-            print("PLAYWRIGHT DEBUG: Navigation completed", flush=True)
+            # Navigate to Pinterest home page first, then search
+            print("PLAYWRIGHT DEBUG: Navigating to Pinterest home page first...", flush=True)
+            page.goto("https://www.pinterest.com", wait_until='domcontentloaded', timeout=60000)
+            print("PLAYWRIGHT DEBUG: Home page loaded, navigating to search...", flush=True)
             
-            # Wait for pins to load
+            # Wait a bit to look more human
+            import time
+            time.sleep(2)
+            
+            # Now navigate to search
+            print(f"PLAYWRIGHT DEBUG: Navigating to: {search_url}", flush=True)
+            page.goto(search_url, wait_until='domcontentloaded', timeout=120000)  # 2 minutes
+            print("PLAYWRIGHT DEBUG: Search page loaded", flush=True)
+            
+            # Wait for pins to load with multiple selectors
             print("PLAYWRIGHT DEBUG: Waiting for pins to load...", flush=True)
-            page.wait_for_selector('[data-test-id="pin"] || .Pin || [data-testid="pin-wrapper"]', timeout=60000)  # 1 minute
+            try:
+                page.wait_for_selector('[data-test-id="pin"]', timeout=30000)
+            except:
+                try:
+                    page.wait_for_selector('.Pin', timeout=30000)
+                except:
+                    try:
+                        page.wait_for_selector('[data-testid="pin-wrapper"]', timeout=30000)
+                    except:
+                        print("PLAYWRIGHT DEBUG: No pin selectors found, trying alternative approach", flush=True)
+                        # Wait for any content to load
+                        time.sleep(5)
             
             # Scroll to load more pins
             for _ in range(3):
