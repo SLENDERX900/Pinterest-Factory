@@ -1572,6 +1572,12 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     import sys
     import logging
     
+    # Import memory functions
+    try:
+        from utils.sitemap_memory import has_url, mark_url
+    except ImportError:
+        from sitemap_memory import has_url, mark_url
+    
     # Force output to appear in Streamlit Cloud
     debug_msg = f"SCRAPER START: {base_url}"
     print(debug_msg, flush=True)
