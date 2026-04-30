@@ -11,17 +11,29 @@ from pathlib import Path
 # Fix protobuf compatibility
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
-# Clear corrupted ChromaDB cache on startup (prevents crash loops)
+# Clear corrupted ChromaDB cache on startup (prevents crash loops on Streamlit Cloud)
 CHROMA_DIR = Path("data/chroma")
 if CHROMA_DIR.exists():
     try:
-        # Check if it's too large or potentially corrupted
+        # Check if it's too large or potentially corrupted (LOWERED to 20MB)
         total_size = sum(f.stat().st_size for f in CHROMA_DIR.rglob('*') if f.is_file())
-        if total_size > 50 * 1024 * 1024:  # > 50MB
-            shutil.rmtree(CHROMA_DIR)
-            print("Cleared large ChromaDB cache on startup")
+        if total_size > 20 * 1024 * 1024:  # > 20MB - more aggressive
+            shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+            print("Cleared large ChromaDB cache (>20MB) on startup")
+        # Also check for corrupted LevelDB files
+        elif any(f.suffix == '.ldb' for f in CHROMA_DIR.rglob('*')):
+            # LevelDB files present but DB might be corrupted
+            if total_size > 5 * 1024 * 1024:  # If over 5MB with ldb files, could be corrupted
+                shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+                print("Cleared potentially corrupted ChromaDB cache on startup")
     except Exception as e:
         print(f"Could not check ChromaDB: {e}")
+        # Force clear if we can't even check
+        try:
+            shutil.rmtree(CHROMA_DIR, ignore_errors=True)
+            print("Force-cleared ChromaDB after check failure")
+        except:
+            pass
 
 import streamlit as st
 from dotenv import load_dotenv

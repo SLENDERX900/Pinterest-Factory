@@ -2,6 +2,8 @@
 STEP 2: Free RAG Memory (ChromaDB)
 Local ChromaDB memory for Pinterest trend context with disk space management.
 Uses Hugging Face all-MiniLM-L6-v2 model for embeddings.
+
+For Streamlit Cloud: Uses ephemeral in-memory mode to avoid disk space errors.
 """
 
 from __future__ import annotations
@@ -9,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import logging
+import os
 from pathlib import Path
 
 import chromadb
@@ -19,7 +22,10 @@ logger = logging.getLogger(__name__)
 DB_DIR = Path("data/chroma")
 COLLECTION_NAME = "pinterest_trends"
 EMBED_MODEL = "all-MiniLM-L6-v2"
-MAX_COLLECTION_SIZE = 500  # Maximum number of items to prevent disk fill
+MAX_COLLECTION_SIZE = 200  # Reduced from 500 for tighter memory control
+
+# Detect if running on Streamlit Cloud (no persistent storage available)
+IS_STREAMLIT_CLOUD = os.getenv("STREAMLIT_SERVER_PORT") is not None or os.getenv("STREAMLIT_SHARING_MODE") is not None
 
 _embedder = None
 _collection = None
@@ -38,9 +44,12 @@ def _get_db_size_mb() -> float:
     if not DB_DIR.exists():
         return 0.0
     total_size = 0
-    for item in DB_DIR.rglob('*'):
-        if item.is_file():
-            total_size += item.stat().st_size
+    try:
+        for item in DB_DIR.rglob('*'):
+            if item.is_file():
+                total_size += item.stat().st_size
+    except (OSError, PermissionError):
+        return 0.0  # Can't access, assume empty
     return total_size / (1024 * 1024)
 
 
@@ -61,6 +70,23 @@ def _cleanup_old_entries(collection, keep_count: int = MAX_COLLECTION_SIZE):
         logger.warning(f"Cleanup failed: {e}")
 
 
+def _force_clear_db_directory():
+    """Aggressively clear the DB directory including corrupted files."""
+    try:
+        if DB_DIR.exists():
+            # Remove entire data directory
+            shutil.rmtree(DB_DIR, ignore_errors=True)
+            logger.warning("Force-cleared ChromaDB directory")
+        # Also try to clear any temp files
+        for temp_file in Path(".").glob("*.ldb"):
+            try:
+                temp_file.unlink()
+            except:
+                pass
+    except Exception as e:
+        logger.error(f"Force clear failed: {e}")
+
+
 def _reset_database():
     """Clear the entire database if it's corrupted or full."""
     global _collection, _client
@@ -77,32 +103,51 @@ def _reset_database():
 def _get_collection():
     global _collection, _client
     if _collection is None:
+        # STREAMLIT CLOUD: Use ephemeral in-memory client (no disk writes)
+        if IS_STREAMLIT_CLOUD:
+            logger.info("Using ephemeral in-memory ChromaDB for Streamlit Cloud")
+            try:
+                _client = chromadb.Client()  # In-memory, no persistence
+                _collection = _client.get_or_create_collection(COLLECTION_NAME)
+                return _collection
+            except Exception as e:
+                logger.critical(f"Ephemeral ChromaDB failed: {e}")
+                raise
+        
+        # LOCAL: Use persistent client with aggressive cleanup
         try:
             DB_DIR.mkdir(parents=True, exist_ok=True)
             
-            # Check available disk space (rough estimate)
+            # Check available disk space - LOWERED to 50MB threshold
             db_size = _get_db_size_mb()
-            if db_size > 100:  # If DB is over 100MB, clear it
-                logger.warning(f"ChromaDB size ({db_size:.1f}MB) exceeds limit, resetting")
-                _reset_database()
+            if db_size > 50:  # If DB is over 50MB, clear it completely
+                logger.warning(f"ChromaDB size ({db_size:.1f}MB) exceeds 50MB limit, force-clearing")
+                _force_clear_db_directory()
             
             _client = chromadb.PersistentClient(path=str(DB_DIR))
             _collection = _client.get_or_create_collection(COLLECTION_NAME)
             
             # Clean up if too large
-            _cleanup_old_entries(_collection)
+            _cleanup_old_entries(_collection, MAX_COLLECTION_SIZE // 2)  # Keep only half
             
         except Exception as e:
             logger.error(f"ChromaDB init failed: {e}")
             # Fallback: try to reset and recreate
-            _reset_database()
+            _force_clear_db_directory()
             try:
                 DB_DIR.mkdir(parents=True, exist_ok=True)
                 _client = chromadb.PersistentClient(path=str(DB_DIR))
                 _collection = _client.get_or_create_collection(COLLECTION_NAME)
             except Exception as e2:
                 logger.critical(f"ChromaDB completely failed: {e2}")
-                raise
+                # Last resort: use ephemeral client
+                try:
+                    _client = chromadb.Client()
+                    _collection = _client.get_or_create_collection(COLLECTION_NAME)
+                    logger.warning("Falling back to ephemeral in-memory ChromaDB")
+                except Exception as e3:
+                    logger.critical(f"All ChromaDB options failed: {e3}")
+                    raise
     return _collection
 
 
@@ -111,17 +156,21 @@ def store_trending_pins(pins: list[dict]) -> int:
     if not pins:
         return 0
     
+    # Limit pins to prevent memory bloat
+    pins = pins[:50]  # Max 50 pins per batch
+    
     try:
         embedder = _get_embedder()
         collection = _get_collection()
         
         # Pre-cleanup if approaching limit
-        try:
-            current = collection.count()
-            if current > MAX_COLLECTION_SIZE:
-                _cleanup_old_entries(collection, MAX_COLLECTION_SIZE // 2)
-        except Exception:
-            pass
+        if not IS_STREAMLIT_CLOUD:  # Only needed for persistent mode
+            try:
+                current = collection.count()
+                if current > MAX_COLLECTION_SIZE:
+                    _cleanup_old_entries(collection, MAX_COLLECTION_SIZE // 3)  # Keep only 1/3
+            except Exception:
+                pass
 
         texts = []
         ids = []
@@ -151,8 +200,8 @@ def store_trending_pins(pins: list[dict]) -> int:
         
     except Exception as e:
         logger.error(f"Failed to store pins: {e}")
-        # Try to reset and continue
-        _reset_database()
+        if not IS_STREAMLIT_CLOUD:
+            _force_clear_db_directory()
         return 0
 
 
@@ -173,6 +222,7 @@ def query_similar_trends(query_text: str, top_k: int = 5) -> list[dict]:
         return items
     except Exception as e:
         logger.error(f"Query failed: {e}")
-        # Reset and return empty on critical failure
-        _reset_database()
+        # Don't reset on ephemeral mode, just return empty
+        if not IS_STREAMLIT_CLOUD:
+            _force_clear_db_directory()
         return []
