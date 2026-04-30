@@ -189,7 +189,11 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
     Add subtle 'nobscooking.com' watermark at bottom of pin.
     Positioned at Y=1420 with semi-transparent background for readability.
     """
-    print(f"DEBUG: Adding watermark to image size: {image.size}, mode: {image.mode}")
+    print(f"WATERMARK DEBUG: === STARTING WATERMARK FUNCTION ===")
+    print(f"WATERMARK DEBUG: Adding watermark to image size: {image.size}, mode: {image.mode}")
+    print(f"WATERMARK DEBUG: This should be very visible in terminal!")
+    import sys
+    sys.stdout.flush()
     
     # Convert to RGBA if needed
     if image.mode != 'RGBA':
@@ -250,7 +254,10 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
                          stroke_color=(0, 0, 0),        # Black stroke
                          stroke_width=2)               # Subtle stroke
     
-    print(f"DEBUG: Watermark added successfully")
+    print(f"WATERMARK DEBUG: Watermark added successfully")
+    print(f"WATERMARK DEBUG: === WATERMARK FUNCTION COMPLETE ===")
+    import sys
+    sys.stdout.flush()
     
     # Convert back to RGB for consistency
     if image.mode == 'RGBA':
