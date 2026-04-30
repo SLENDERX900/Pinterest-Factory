@@ -40,6 +40,30 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Install Playwright browsers on Streamlit Cloud startup
+try:
+    import playwright
+except ImportError:
+    import subprocess
+    subprocess.run(["pip", "install", "playwright"])
+
+@st.cache_resource
+def install_playwright():
+    """Install Chromium browser and dependencies for Streamlit Cloud."""
+    import subprocess
+    try:
+        # Install chromium browser
+        subprocess.run(["python", "-m", "playwright", "install", "chromium"], 
+                     check=True, capture_output=True, timeout=120)
+        print("Playwright Chromium installed successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"Playwright install failed: {e}")
+    except Exception as e:
+        print(f"Error installing Playwright: {e}")
+
+# Install on first run
+install_playwright()
+
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Pinterest Factory · Recipe Content Tool",
