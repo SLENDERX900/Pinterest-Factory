@@ -74,12 +74,14 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
             
             try:
                 recipe = extract_with_recipe_scrapers(url, headers)
-                if recipe and recipe.get('name') and recipe['name'] != 'Unknown Recipe':
-                    if is_valid_recipe_name(recipe['name']):
+                if recipe and recipe.get('name'):
+                    recipe_name = recipe['name']
+                    # Be more permissive - accept if it's not "Unknown Recipe" and passes basic validation
+                    if recipe_name != 'Unknown Recipe' and len(recipe_name.strip()) > 3:
                         recipes.append(recipe)
-                        print(f"✅ Found recipe: {recipe['name']}")
+                        print(f"✅ Found recipe: {recipe_name}")
                     else:
-                        print(f"❌ Skipped invalid name: {recipe['name']}")
+                        print(f"❌ Skipped invalid name: {recipe_name}")
                 else:
                     print(f"❌ No valid recipe data found")
                 time.sleep(0.5)  # Be respectful

@@ -229,11 +229,21 @@ async def scrape_pinterest_trends(recipe_url: str, max_pins: int = 10) -> List[D
 # Synchronous wrapper for easier integration
 def scrape_pinterest_trends_sync(recipe_url: str, max_pins: int = 10) -> List[Dict]:
     """
-    Synchronous wrapper for Pinterest scraping
+    Synchronous wrapper for Pinterest scraping - Streamlit compatible
     """
     try:
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(scrape_pinterest_trends(recipe_url, max_pins))
+        # Handle async properly for Streamlit environment
+        if hasattr(asyncio, 'run'):
+            # Python 3.7+ - use asyncio.run()
+            return asyncio.run(scrape_pinterest_trends(recipe_url, max_pins))
+        else:
+            # Fallback for older Python versions
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(scrape_pinterest_trends(recipe_url, max_pins))
+            finally:
+                loop.close()
     except Exception as e:
         print(f"❌ Pinterest scraping failed: {e}")
         return []

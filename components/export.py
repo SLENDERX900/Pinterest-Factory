@@ -82,7 +82,7 @@ def render_export():
 
     # ── Preview ───────────────────────────────────────────────────────────────
     with st.expander("📋 Preview CSV (first 15 rows)", expanded=True):
-        st.dataframe(canva_df.head(15), use_container_width=True, hide_index=True)
+        st.dataframe(canva_df.head(15), width='stretch', hide_index=True)
 
     st.divider()
 
@@ -96,7 +96,7 @@ def render_export():
             file_name="canva_bulk_import.csv",
             mime="text/csv",
             type="primary",
-            use_container_width=True,
+            width='stretch',
             help="Import this into Canva → Bulk Create. Maps Hook_Text to your text layer.",
         )
         st.caption("4 columns · Canva-ready · use this for bulk design production")
@@ -107,7 +107,7 @@ def render_export():
             data=full_csv,
             file_name="pinterest_factory_full_export.csv",
             mime="text/csv",
-            use_container_width=True,
+            width='stretch',
             help="Full export including URLs, cook times, and benefit tags for your records.",
         )
         st.caption("7 columns · includes URLs, times, tags · for your records / Notion")
@@ -172,7 +172,7 @@ Select all → **Download** → choose **JPG** or **PNG** at 1x.
     for recipe_name in df["Recipe_Name"].unique():
         recipe_df = df[df["Recipe_Name"] == recipe_name][["Angle_Type", "Hook_Text"]]
         with st.expander(f"**{recipe_name}**"):
-            st.dataframe(recipe_df, use_container_width=True, hide_index=True)
+            st.dataframe(recipe_df, width='stretch', hide_index=True)
             desc = df[df["Recipe_Name"] == recipe_name]["Search_Description"].iloc[0]
             st.caption(f"**Description:** {desc}")
             url = df[df["Recipe_Name"] == recipe_name]["Recipe_URL"].iloc[0]

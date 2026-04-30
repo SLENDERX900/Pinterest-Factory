@@ -145,7 +145,7 @@ def render_notion_sync():
         sync_clicked = st.button(
             "🗂️ Sync to Notion",
             type="primary",
-            use_container_width=True,
+            width='stretch',
         )
     with col_info:
         st.caption(
@@ -191,7 +191,7 @@ def render_notion_sync():
             st.warning(f"Sync complete — {successes} succeeded, {failures} failed.")
 
     st.divider()
-    if st.button("📅 Schedule Pins + Mark Notion Scheduled", use_container_width=True):
+    if st.button("📅 Schedule Pins + Mark Notion Scheduled", width='stretch'):
         packages = st.session_state.get("hook_packages", {})
         notion_pages = st.session_state.get("notion_pages", {})
         schedule_log = []
