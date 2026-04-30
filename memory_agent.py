@@ -12,8 +12,51 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 import hashlib
+
+
+class SimpleTextSplitter:
+    """Simple text splitter for semantic chunking without langchain dependency"""
+    
+    def __init__(self, chunk_size: int = 200, chunk_overlap: int = 50):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.separators = ["\n\n", "\n", ". ", " ", ""]
+    
+    def split_text(self, text: str) -> List[str]:
+        """Split text into chunks"""
+        if not text:
+            return []
+        
+        chunks = []
+        current_pos = 0
+        
+        while current_pos < len(text):
+            # Determine chunk end position
+            end_pos = min(current_pos + self.chunk_size, len(text))
+            
+            # Try to find a good separator
+            best_split = end_pos
+            for sep in self.separators:
+                sep_pos = text.rfind(sep, current_pos, end_pos)
+                if sep_pos > current_pos:
+                    best_split = sep_pos + len(sep)
+                    break
+            
+            chunk = text[current_pos:best_split].strip()
+            if chunk:
+                chunks.append(chunk)
+            
+            # Move to next position with overlap
+            current_pos = best_split - self.chunk_overlap
+            if current_pos < 0:
+                current_pos = best_split
+            
+            # Avoid infinite loop
+            if current_pos >= len(text) or current_pos == end_pos:
+                break
+        
+        return chunks
 
 
 class MemoryAgent:
@@ -40,11 +83,9 @@ class MemoryAgent:
             print("✅ Qdrant client initialized (local)")
             
             # Initialize text splitter for semantic chunking
-            self.text_splitter = RecursiveCharacterTextSplitter(
+            self.text_splitter = SimpleTextSplitter(
                 chunk_size=200,
-                chunk_overlap=50,
-                length_function=len,
-                separators=["\n\n", "\n", ". ", " ", ""]
+                chunk_overlap=50
             )
             print("✅ Semantic chunking initialized")
             
