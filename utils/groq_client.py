@@ -44,6 +44,22 @@ def _generate(prompt: str, model: str | None = None, max_tokens: int = 900) -> s
 
 def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None, model: str | None = None) -> list[dict[str, Any]]:
     trend_context = trend_context or []
+    
+    # DEBUG: Log context usage
+    print(f"\n🔍 GROQ CONTEXT ANALYSIS:")
+    print(f"   Recipe: {recipe.get('name', 'Unknown')}")
+    print(f"   Trend context items: {len(trend_context)}")
+    
+    if trend_context:
+        print(f"   Using web scraping context: YES")
+        print(f"   Trending pins being analyzed:")
+        for i, pin in enumerate(trend_context[:3]):  # Show first 3
+            title = pin.get('title', 'No title')[:50]
+            desc = pin.get('description', 'No description')[:50]
+            print(f"     {i+1}. {title} | {desc}")
+    else:
+        print(f"   Using web scraping context: NO - will fallback to generic patterns")
+    
     context_lines = [
         f"- {c.get('title','')} | {c.get('description','')}"[:280]
         for c in trend_context[:5]
@@ -79,12 +95,29 @@ For descriptions: Make them PROMOTIONAL and PINTERCAST-OPTIMIZED:
 - Focus on benefits and results
 """
     try:
+        print(f"📤 Sending prompt to Groq with {len(trend_context)} trend items...")
         raw = _generate(prompt, model=model)
+        print(f"📥 Raw Groq response received (length: {len(raw)})")
+        
         data = json.loads(raw)
         if isinstance(data, list) and len(data) >= 5:
+            print(f"✅ Groq SUCCESS: Generated {len(data)} valid packages")
+            # Log first package to verify context usage
+            first_pkg = data[0]
+            desc = first_pkg.get('description', '')
+            has_hashtags = '#' in desc
+            has_trend_words = any(word in desc.lower() for word in ['recipe', 'easy', 'quick', 'best'])
+            print(f"   First description: {desc[:60]}...")
+            print(f"   Contains hashtags: {has_hashtags}")
+            print(f"   Contains trend keywords: {has_trend_words}")
             return data[:5]
-    except Exception:
-        pass
+        else:
+            print(f"❌ Groq INVALID: Returned {len(data) if data else 0} packages (need ≥5)")
+    except Exception as e:
+        print(f"❌ Groq FAILED: {e}")
+        print(f"   Will use fallback patterns")
+    
+    print(f"🔄 FALLBACK TRIGGERED: Using predefined patterns")
 
     name = recipe.get("name", "Recipe")
     benefit = recipe.get("benefit", "Quick Weeknight")
@@ -106,15 +139,81 @@ def generate_hooks(recipe: dict, trend_context: list[dict] | None = None, model:
     return result
 
 
+def debug_groq_context(recipe: dict, trend_context: list[dict] | None = None) -> None:
+    """Debug function to show exactly what context Groq receives."""
+    print("\n" + "="*80)
+    print("🔍 GROQ CONTEXT DEBUG REPORT")
+    print("="*80)
+    
+    print(f"\n📋 RECIPE INPUT:")
+    print(f"   Name: {recipe.get('name', 'N/A')}")
+    print(f"   Time: {recipe.get('time', 'N/A')}")
+    print(f"   Ingredients: {recipe.get('ingredients', 'N/A')}")
+    print(f"   Benefit: {recipe.get('benefit', 'N/A')}")
+    print(f"   URL: {recipe.get('url', 'N/A')}")
+    
+    print(f"\n🌐 TRENDING CONTEXT ANALYSIS:")
+    if trend_context and len(trend_context) > 0:
+        print(f"   ✅ Context available: {len(trend_context)} items")
+        print(f"   📊 Context quality analysis:")
+        
+        # Analyze context quality
+        total_hashtags = 0
+        total_keywords = 0
+        avg_desc_length = 0
+        
+        for i, pin in enumerate(trend_context[:5]):
+            title = pin.get('title', '')
+            desc = pin.get('description', '')
+            
+            # Count hashtags
+            import re
+            hashtags = len(re.findall(r'#\w+', desc))
+            total_hashtags += hashtags
+            
+            # Count keywords
+            keywords = len([kw for kw in ['easy', 'quick', 'simple', 'best', 'perfect'] if kw in desc.lower()])
+            total_keywords += keywords
+            
+            avg_desc_length += len(desc)
+            
+            print(f"     Pin {i+1}: {title[:40]}... | {desc[:40]}... | #{hashtags} hashtags")
+        
+        avg_desc_length = avg_desc_length // len(trend_context[:5]) if trend_context else 0
+        print(f"   📈 Context metrics:")
+        print(f"      Total hashtags: {total_hashtags}")
+        print(f"      Total keywords: {total_keywords}")
+        print(f"      Avg description length: {avg_desc_length} chars")
+        
+        # Predict Groq success
+        if len(trend_context) >= 3 and total_hashtags > 0:
+            print(f"   🎯 Prediction: HIGH chance of Groq using context")
+        elif len(trend_context) >= 1:
+            print(f"   ⚠️  Prediction: MEDIUM chance of Groq using context")
+        else:
+            print(f"   ❌ Prediction: LOW chance - will likely fallback")
+            
+    else:
+        print(f"   ❌ NO CONTEXT AVAILABLE - Groq will definitely fallback")
+    
+    print("\n" + "="*80)
+
 def generate_description(recipe: dict, trend_context: list[dict] | None = None, model: str | None = None) -> str:
     """Generate enhanced Pinterest SEO description that learns from trending context."""
+    
+    # Debug context before generation
+    debug_groq_context(recipe, trend_context)
+    
     packages = generate_hook_packages(recipe, trend_context=trend_context, model=model)
     base_description = (packages[0].get("description", "") if packages else "").strip()
     
     # If we have trending context, enhance the description further
     if trend_context and len(trend_context) > 0:
-        return enhance_pinterest_seo_description(base_description, recipe, trend_context)
+        enhanced = enhance_pinterest_seo_description(base_description, recipe, trend_context)
+        print(f"\n🔧 ENHANCED DESCRIPTION: {enhanced}")
+        return enhanced
     
+    print(f"\n🔧 BASE DESCRIPTION (no enhancement): {base_description}")
     return base_description
 
 def enhance_pinterest_seo_description(base_desc: str, recipe: dict, trend_context: list[dict]) -> str:
