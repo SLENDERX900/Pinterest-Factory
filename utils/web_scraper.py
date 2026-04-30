@@ -1,8 +1,9 @@
 """
 utils/web_scraper.py
-Web scraping utilities for extracting recipe information from food blog websites.
+STEP 4: Web scraping with Active Memory for Sitemaps
 Uses ultimate-sitemap-parser for robust sitemap handling and recipe-scrapers for
 accurate recipe extraction from 600+ supported sites.
+Integrates with SQLite memory to skip already-processed URLs.
 """
 
 import requests
@@ -12,6 +13,9 @@ from urllib.parse import urljoin, urlparse
 import time
 from usp.tree import sitemap_tree_for_homepage
 from recipe_scrapers import scrape_html
+
+# STEP 4: Active Memory integration
+from utils.sitemap_memory import has_url, mark_url
 
 def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[dict]:
     """
@@ -57,11 +61,18 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
         
         print(f"Found {len(recipe_urls)} potential recipe URLs")
         
+        # STEP 4: Filter out already-processed URLs from memory
+        new_urls = [url for url in recipe_urls if not has_url(url)]
+        skipped_count = len(recipe_urls) - len(new_urls)
+        if skipped_count > 0:
+            print(f"STEP 4: Skipped {skipped_count} already-processed URLs (from memory)")
+        print(f"Processing {len(new_urls)} new recipe URLs")
+        
         # Step 4: Extract recipe data using recipe-scrapers
         recipes = []
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         
-        for url in recipe_urls[:max_recipes * 3]:  # Try more to get enough valid recipes
+        for url in new_urls[:max_recipes * 3]:  # Try more to get enough valid recipes
             if len(recipes) >= max_recipes:
                 break
             
@@ -70,7 +81,9 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
                 if recipe and recipe.get('name') and recipe['name'] != 'Unknown Recipe':
                     if is_valid_recipe_name(recipe['name']):
                         recipes.append(recipe)
-                        print(f"✓ Found recipe: {recipe['name']}")
+                        # STEP 4: Mark URL as processed in memory
+                        mark_url(url)
+                        print(f"✓ Found recipe: {recipe['name']} (marked as processed)")
                     else:
                         print(f"✗ Skipped invalid name: {recipe['name']}")
                 time.sleep(0.5)  # Be respectful

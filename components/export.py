@@ -7,7 +7,7 @@ Columns: Recipe_Name, Angle_Type, Hook_Text, Search_Description
 import io
 import pandas as pd
 import streamlit as st
-from utils.ollama_client import ANGLES
+from utils.groq_client import ANGLES
 
 
 def _build_dataframe() -> pd.DataFrame:
