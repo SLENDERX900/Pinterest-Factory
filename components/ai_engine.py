@@ -230,9 +230,21 @@ def render_ai_engine():
                         hook_desc = package.get('description', '')
                         break
                 
+                # Display unique SEO description for this specific pin angle
                 if hook_desc:
-                    cols[i].caption(f"📝 {hook_desc[:80]}{'...' if len(hook_desc) > 80 else ''}")
-                    cols[i].markdown(f"<small style='color: #666; font-size: 0.8em;'>{hook_desc}</small>", unsafe_allow_html=True)
+                    cols[i].markdown(f"""
+                    <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-top: 5px;">
+                        <strong>📌 SEO Description for {angle}:</strong><br>
+                        <small style="color: #333;">{hook_desc}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Store individual SEO descriptions in session state
+                    if 'pin_descriptions' not in st.session_state:
+                        st.session_state.pin_descriptions = {}
+                    if name not in st.session_state.pin_descriptions:
+                        st.session_state.pin_descriptions[name] = {}
+                    st.session_state.pin_descriptions[name][angle] = hook_desc
 
                 # Save edit back to state
                 if new_val != current:
@@ -240,23 +252,24 @@ def render_ai_engine():
 
             st.divider()
 
-            # Description field
-            new_desc = st.text_area(
-                "SEO description (copy-paste into Pinterest)",
-                value=description,
-                key=f"desc_{name}",
-                height=80,
-                max_chars=500,
-                help="Formula: [Keyword] + [benefit] + [use case]",
-            )
-            char_count = len(new_desc)
-            if char_count > 150:
-                st.caption(f"⚠️ {char_count} chars — Pinterest shows ~150 in preview")
-            else:
-                st.caption(f"{char_count}/150 chars")
-
-            if new_desc != description:
-                st.session_state.descriptions[name] = new_desc
+            # Remove the general SEO description field since each pin has its own
+            st.markdown("### 📋 Copy-Paste Ready Content")
+            st.markdown(f"**Recipe:** {name}")
+            st.markdown("**Each hook above has its own unique SEO description for that specific angle.**")
+            
+            # Show all hooks + descriptions in copy-paste format
+            st.markdown("**📱 Pinterest Content:**")
+            for angle in angles:
+                hook_text = hooks.get(angle, "")
+                seo_text = st.session_state.pin_descriptions.get(name, {}).get(angle, "")
+                if hook_text and seo_text:
+                    st.markdown(f"""
+                    <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                        <strong>📌 {angle} Pin:</strong><br>
+                        <strong>Hook:</strong> {hook_text}<br>
+                        <strong>Description:</strong> {seo_text}
+                    </div>
+                    """, unsafe_allow_html=True)
 
             # URL quick-link
             if recipe.get("url"):
