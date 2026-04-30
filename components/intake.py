@@ -264,50 +264,101 @@ def render_intake():
 
         
 
-        # Scrape button
-        if st.button("🔍 Scrape Recipes", disabled=not website_url, width='stretch'):
+        # Scrape buttons
+        col_scrape, col_clear = st.columns([3, 1])
+        
+        with col_scrape:
+            if st.button("🔍 Scrape Recipes", disabled=not website_url, width='stretch'):
 
-            if validate_url(website_url):
+                if validate_url(website_url):
 
-                with st.spinner("Scraping recipes from website..."):
+                    with st.spinner("Scraping recipes from website..."):
 
-                    try:
+                        try:
 
-                        scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
-
-                        
-
-                        if scraped_recipes:
-
-                            st.success(f"Found {len(scraped_recipes)} recipes!")
-
-                            # Keep scraper open to show results
-
-                            st.session_state.show_scraper = True
+                            scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
 
                             
 
-                            # Store scraped recipes in session state
+                            if scraped_recipes:
 
-                            st.session_state.scraped_recipes = scraped_recipes
+                                st.success(f"Found {len(scraped_recipes)} recipes!")
 
-                            st.rerun()  # Rerun to display results outside the button block
+                                # Keep scraper open to show results
 
-                        else:
+                                st.session_state.show_scraper = True
 
-                            st.error("No recipes found. Please check the URL and try again.")
+                                
 
-                    except Exception as e:
+                                # Store scraped recipes in session state
 
-                        st.error(f"Scraping failed: {str(e)}")
+                                st.session_state.scraped_recipes = scraped_recipes
 
-                        with st.expander("Debug details"):
+                                st.rerun()  # Rerun to display results outside the button block
 
-                            st.code(traceback.format_exc())
+                            else:
 
-            else:
+                                st.error("No recipes found. Please check the URL and try again.")
 
-                st.error("Please enter a valid URL.")
+                        except Exception as e:
+
+                            st.error(f"Scraping failed: {str(e)}")
+
+                            with st.expander("Debug details"):
+
+                                st.code(traceback.format_exc())
+
+                else:
+
+                    st.error("Please enter a valid URL.")
+        
+        with col_clear:
+            if st.button("🗑️ Clear Memory", help="Clear scraper memory to re-scrape all URLs", width='stretch'):
+                from utils.sitemap_memory import clear_all_urls
+                try:
+                    clear_all_urls()
+                    st.success("Scraper memory cleared! You can now re-scrape all URLs.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to clear memory: {str(e)}")
+        
+        # Check if we have existing recipes in session state and show them directly
+        if st.session_state.get('recipes') and not st.session_state.get('scraped_recipes'):
+            st.info("📋 **Existing recipes found** - Select recipes to load into batch:")
+            
+            # Show existing recipes for selection
+            existing_recipes = st.session_state.recipes
+            recipe_options = {}
+            
+            for r in existing_recipes:
+                time_display = r.get('time', '')
+                if r.get('prep_time') and r.get('cook_time'):
+                    time_display = f"Prep: {r['prep_time']}, Cook: {r['cook_time']}"
+                elif r.get('total_time'):
+                    time_display = r['total_time']
+                
+                label = f"{r['name']} · {time_display}"
+                recipe_options[label] = r
+            
+            # Multiselect for recipe selection
+            selected_labels = st.multiselect(
+                "Select recipes to load",
+                options=list(recipe_options.keys()),
+                key="existing_recipe_multiselect"
+            )
+            
+            quick_selections = [recipe_options[label] for label in selected_labels]
+            selected_count = len(quick_selections)
+            
+            st.write(f"**{selected_count} recipes selected**")
+            
+            if st.button(
+                "Load selected into batch",
+                disabled=selected_count == 0,
+                key="load_existing_btn"
+            ):
+                load_selected(quick_selections)
+                st.rerun()
 
 
 
