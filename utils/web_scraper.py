@@ -30,17 +30,17 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
     """
     try:
         base_url = base_url.rstrip('/')
-        print(f"Discovering sitemaps for: {base_url}")
+        print(f"🔍 Discovering sitemaps for: {base_url}")
         
         # Step 1: Use ultimate-sitemap-parser to discover and flatten all sitemaps
         tree = sitemap_tree_for_homepage(base_url)
         
         # Step 2: Collect all page URLs
         all_pages = list(tree.all_pages())
-        print(f"Found {len(all_pages)} total pages in sitemaps")
+        print(f"📄 Found {len(all_pages)} total pages in sitemaps")
         
         if not all_pages:
-            print("No pages found in sitemaps, falling back to homepage scraping")
+            print("⚠️ No pages found in sitemaps, falling back to homepage scraping")
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             return fallback_homepage_scraping(base_url, max_recipes, headers)
         
@@ -55,35 +55,57 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
             elif is_likely_recipe_url(url):
                 recipe_urls.append(url)
         
-        print(f"Found {len(recipe_urls)} potential recipe URLs")
+        print(f"🎯 Found {len(recipe_urls)} potential recipe URLs")
+        
+        if not recipe_urls:
+            print("⚠️ No recipe URLs found, trying homepage scraping")
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            return fallback_homepage_scraping(base_url, max_recipes, headers)
         
         # Step 4: Extract recipe data using recipe-scrapers
         recipes = []
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         
-        for url in recipe_urls[:max_recipes * 3]:  # Try more to get enough valid recipes
+        for i, url in enumerate(recipe_urls[:max_recipes * 3]):  # Try more to get enough valid recipes
             if len(recipes) >= max_recipes:
                 break
+            
+            print(f"🔍 Processing {i+1}/{len(recipe_urls)}: {url}")
             
             try:
                 recipe = extract_with_recipe_scrapers(url, headers)
                 if recipe and recipe.get('name') and recipe['name'] != 'Unknown Recipe':
                     if is_valid_recipe_name(recipe['name']):
                         recipes.append(recipe)
-                        print(f"✓ Found recipe: {recipe['name']}")
+                        print(f"✅ Found recipe: {recipe['name']}")
                     else:
-                        print(f"✗ Skipped invalid name: {recipe['name']}")
+                        print(f"❌ Skipped invalid name: {recipe['name']}")
+                else:
+                    print(f"❌ No valid recipe data found")
                 time.sleep(0.5)  # Be respectful
             except Exception as e:
-                print(f"Error scraping {url}: {e}")
+                print(f"❌ Error scraping {url}: {e}")
                 continue
         
-        print(f"Successfully extracted {len(recipes)} recipes")
+        print(f"🎉 Successfully extracted {len(recipes)} recipes")
+        
+        # If still no recipes, try lenient approach
+        if not recipes:
+            print("🔄 No recipes with strict filtering - trying lenient approach...")
+            return fallback_homepage_scraping(base_url, max_recipes, headers)
+        
         return recipes
         
     except Exception as e:
-        print(f"Error scraping website {base_url}: {e}")
-        return []
+        print(f"❌ Error scraping website {base_url}: {e}")
+        # Try fallback method as last resort
+        try:
+            print("🔄 Trying fallback homepage scraping...")
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            return fallback_homepage_scraping(base_url, max_recipes, headers)
+        except Exception as fallback_error:
+            print(f"❌ Fallback also failed: {fallback_error}")
+            return []
 
 def is_likely_recipe_url(url: str) -> bool:
     """
@@ -539,26 +561,39 @@ def fallback_homepage_scraping(base_url: str, max_recipes: int, headers: dict) -
     Fallback method: scrape from homepage if no sitemap found.
     """
     try:
+        print(f"🏠 Trying homepage scraping for: {base_url}")
         response = requests.get(base_url, headers=headers, timeout=10)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.content, 'html.parser')
         recipe_links = find_recipe_links(soup, base_url)
         
+        print(f"🔗 Found {len(recipe_links)} recipe links on homepage")
+        
+        if not recipe_links:
+            print("❌ No recipe links found on homepage")
+            return []
+        
         recipes = []
-        for link in recipe_links[:max_recipes]:
+        for i, link in enumerate(recipe_links[:max_recipes]):
+            print(f"🔍 Processing homepage link {i+1}/{len(recipe_links)}: {link}")
             try:
                 recipe = extract_recipe_info_with_validation(link, headers)
-                if recipe:
+                if recipe and recipe.get('name') and recipe['name'] != 'Unknown Recipe':
                     recipes.append(recipe)
+                    print(f"✅ Found recipe: {recipe['name']}")
+                else:
+                    print(f"❌ No valid recipe found")
                 time.sleep(1)
             except Exception as e:
+                print(f"❌ Error processing {link}: {e}")
                 continue
-                
+        
+        print(f"🎉 Homepage scraping found {len(recipes)} recipes")
         return recipes
         
     except Exception as e:
-        print(f"Error in fallback scraping: {e}")
+        print(f"❌ Error in fallback scraping: {e}")
         return []
 
 def find_recipe_links(soup: BeautifulSoup, base_url: str) -> list[str]:
@@ -1496,11 +1531,21 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     base_url = base_url.rstrip("/")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
+    print(f"🔍 Starting scrape for: {base_url}")
+    
     try:
+        print("📋 Discovering sitemap...")
         tree = sitemap_tree_for_homepage(base_url)
         all_pages = list(tree.all_pages())
-    except Exception:
+        print(f"📄 Found {len(all_pages)} total pages in sitemap")
+    except Exception as e:
+        print(f"⚠️ Sitemap discovery failed: {e}")
+        print("🔄 Falling back to homepage scraping...")
         return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
+
+    if not all_pages:
+        print("❌ No pages found in sitemap")
+        return []
 
     recipe_urls = []
     for page in all_pages:
@@ -1508,14 +1553,40 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
         if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
             recipe_urls.append(url)
 
+    print(f"🎯 Found {len(recipe_urls)} potential recipe URLs")
+    
+    if not recipe_urls:
+        print("❌ No recipe URLs found - trying fallback method")
+        return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
+
     recipes = []
+    processed_count = 0
     for url in recipe_urls:
         if len(recipes) >= max_recipes:
             break
         if has_url(url):
             continue
-        recipe = extract_with_recipe_scrapers(url, headers)
-        mark_url(url)
-        if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
-            recipes.append(recipe)
+        
+        processed_count += 1
+        print(f"🔍 Processing URL {processed_count}/{len(recipe_urls)}: {url}")
+        
+        try:
+            recipe = extract_with_recipe_scrapers(url, headers)
+            mark_url(url)
+            if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
+                recipes.append(recipe)
+                print(f"✅ Successfully extracted: {recipe['name']}")
+            else:
+                print(f"❌ No valid recipe found")
+        except Exception as e:
+            print(f"❌ Error processing {url}: {e}")
+            continue
+    
+    print(f"🎉 Extraction complete: {len(recipes)} recipes found from {processed_count} URLs")
+    
+    # If no recipes found with strict filtering, try more lenient approach
+    if not recipes:
+        print("🔄 No recipes with strict filtering - trying lenient approach...")
+        return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
+    
     return recipes
