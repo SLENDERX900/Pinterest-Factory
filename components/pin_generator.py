@@ -21,7 +21,7 @@ PIN_WIDTH = 1000
 PIN_HEIGHT = 1500
 FONT_SIZE_HEADLINE = 130  # Much larger for impact
 FONT_SIZE_SUB = 70
-BRAND_FONT_SIZE = 40
+BRAND_FONT_SIZE = 28  # Small but readable as requested
 
 
 # ── Web Scraping Helper ───────────────────────────────────────────────────────
@@ -187,6 +187,7 @@ def wrap_text(text: str, font, max_width: int) -> list[str]:
 def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Image.Image:
     """
     Add subtle 'nobscooking.com' watermark at bottom of pin.
+    Positioned at Y=1420 with semi-transparent background for readability.
     """
     draw = ImageDraw.Draw(image)
     
@@ -210,17 +211,35 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     
-    # Position at bottom with padding
-    x = (PIN_WIDTH - text_width) // 2
-    y = PIN_HEIGHT - text_height - 30
+    # Position at bottom center as requested (Y=1420 on 1000x1500 image)
+    x = (PIN_WIDTH - text_width) // 2  # Perfectly centered on X-axis
+    y = 1420  # Near bottom edge as requested
     
-    # Draw with subtle white stroke on dark
+    # Add semi-transparent black rectangle behind text for readability
+    padding = 10
+    bg_rect = [
+        x - padding,
+        y - padding,
+        x + text_width + padding,
+        y + text_height + padding
+    ]
+    
+    # Create semi-transparent overlay
+    overlay = Image.new('RGBA', (PIN_WIDTH, PIN_HEIGHT), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.rectangle(bg_rect, fill=(0, 0, 0, 128))  # Semi-transparent black
+    
+    # Composite the overlay onto the main image
+    image = Image.alpha_composite(image.convert('RGBA'), overlay)
+    draw = ImageDraw.Draw(image)  # Re-create draw context after composite
+    
+    # Draw white text with dark stroke for maximum visibility
     draw_text_with_stroke(draw, domain, font, x, y, 
-                         fill_color=(255, 255, 255), 
-                         stroke_color=(0, 0, 0), 
-                         stroke_width=3)
+                         fill_color=(255, 255, 255),  # White text
+                         stroke_color=(0, 0, 0),        # Black stroke
+                         stroke_width=2)               # Subtle stroke
     
-    return image
+    return image.convert('RGB')  # Convert back to RGB for consistency
 
 
 # ── Template Functions ────────────────────────────────────────────────────────
