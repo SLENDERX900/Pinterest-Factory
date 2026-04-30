@@ -1,11 +1,5 @@
-# System dependencies for Playwright browser automation on Streamlit Cloud
-# These are installed via apt
-
-# Chromium and dependencies
 chromium
 chromium-driver
-
-# Additional libraries Playwright needs
 libglib2.0-0
 libnss3
 libnspr4
