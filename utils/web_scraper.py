@@ -1571,16 +1571,19 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     """
     print(f"[Scraper] Starting scrape for: {base_url}")
     
-    try:
-        from utils.sitemap_memory import has_url, mark_url
-        print("[Scraper] Successfully imported sitemap_memory")
-    except ImportError as e:
-        print(f"[Scraper] Import error for sitemap_memory: {e}")
-        from sitemap_memory import has_url, mark_url
-
-    base_url = base_url.rstrip("/")
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-
+    # Validate URL
+    if not validate_url(base_url):
+        print(f"[Scraper] Invalid URL format: {base_url}")
+        return []
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+    }
+    
     try:
         print(f"[Scraper] Fetching sitemap from: {base_url}")
         tree = sitemap_tree_for_homepage(base_url)
@@ -1588,33 +1591,45 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
         print(f"[Scraper] Found {len(all_pages)} pages in sitemap")
     except Exception as e:
         print(f"[Scraper] Sitemap fetch failed: {e}, falling back to direct scraping")
-        return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
+        try:
+            return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
+        except Exception as fallback_error:
+            print(f"[Scraper] Fallback scraping also failed: {fallback_error}")
+            return []
 
     recipe_urls = []
-    for page in all_pages:
-        url = page.url
-        if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
-            recipe_urls.append(url)
+    try:
+        for page in all_pages:
+            url = page.url
+            if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
+                recipe_urls.append(url)
+    except Exception as e:
+        print(f"[Scraper] Error filtering recipe URLs: {e}")
+        return []
     
     print(f"[Scraper] Filtered {len(recipe_urls)} recipe URLs from {len(all_pages)} total pages")
 
     recipes = []
     for url in recipe_urls:
-        if len(recipes) >= max_recipes:
-            break
-        if has_url(url):
-            print(f"[Scraper] Skipping already-processed URL: {url}")
+        try:
+            if len(recipes) >= max_recipes:
+                break
+            if has_url(url):
+                print(f"[Scraper] Skipping already-processed URL: {url}")
+                continue
+            
+            print(f"[Scraper] Extracting: {url}")
+            recipe = extract_with_recipe_scrapers(url, headers)
+            mark_url(url)
+            
+            if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
+                print(f"[Scraper] ✓ Found valid recipe: {recipe['name']}")
+                recipes.append(recipe)
+            else:
+                print(f"[Scraper] ✗ Invalid or missing recipe data from: {url}")
+        except Exception as e:
+            print(f"[Scraper] Error processing URL {url}: {e}")
             continue
-        
-        print(f"[Scraper] Extracting: {url}")
-        recipe = extract_with_recipe_scrapers(url, headers)
-        mark_url(url)
-        
-        if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
-            print(f"[Scraper] ✓ Found valid recipe: {recipe['name']}")
-            recipes.append(recipe)
-        else:
-            print(f"[Scraper] ✗ Invalid or missing recipe data from: {url}")
     
     print(f"[Scraper] Completed with {len(recipes)} recipes extracted")
     return recipes
