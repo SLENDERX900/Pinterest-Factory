@@ -165,12 +165,53 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
             except:
                 pass
             
-            # Get ingredient count
+            # Get ingredient count and list
             try:
                 ingredients = scraper.ingredients()
                 ingredient_count = len(ingredients)
+                ingredient_names = ", ".join(ingredients[:5])  # First 5 ingredients
             except:
                 ingredient_count = ""
+                ingredient_names = ""
+            
+            # Extract rich content for AI hook generation
+            try:
+                description = scraper.description() or ""
+            except:
+                description = ""
+            
+            try:
+                instructions = scraper.instructions() or ""
+                # Get first instruction or summary
+                if isinstance(instructions, list) and instructions:
+                    method_snippet = instructions[0][:200]
+                elif isinstance(instructions, str):
+                    method_snippet = instructions[:200]
+                else:
+                    method_snippet = ""
+            except:
+                method_snippet = ""
+            
+            # Extract keywords from page meta/og tags
+            soup = BeautifulSoup(html, 'html.parser')
+            meta_keywords = ""
+            meta_desc = ""
+            og_title = ""
+            
+            # Try to get meta keywords
+            meta_kw_tag = soup.find('meta', attrs={'name': 'keywords'})
+            if meta_kw_tag:
+                meta_keywords = meta_kw_tag.get('content', '')
+            
+            # Try to get meta description
+            meta_desc_tag = soup.find('meta', attrs={'name': 'description'})
+            if meta_desc_tag:
+                meta_desc = meta_desc_tag.get('content', '')
+            
+            # Try to get og:title
+            og_title_tag = soup.find('meta', property='og:title')
+            if og_title_tag:
+                og_title = og_title_tag.get('content', '')
             
             # Determine benefit based on recipe data
             benefit = determine_benefit_from_data(prep_time, cook_time, ingredient_count)
@@ -183,7 +224,15 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
                 'total_time': total_time,
                 'time': total_time if total_time else (cook_time if cook_time else prep_time),
                 'ingredients': str(ingredient_count) if ingredient_count else "",
+                'ingredient_names': ingredient_names,
                 'benefit': benefit,
+                # Rich content for AI hook generation
+                'description': description,
+                'method_snippet': method_snippet,
+                'meta_keywords': meta_keywords,
+                'meta_description': meta_desc,
+                'og_title': og_title,
+                'blog_content_sample': f"{description[:300]} {method_snippet[:200]}".strip(),
             }
             
         except Exception as e:

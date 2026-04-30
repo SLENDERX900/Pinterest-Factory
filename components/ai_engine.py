@@ -82,13 +82,27 @@ def render_ai_engine():
             progress.progress(pct, text=f"Generating: {name} ({idx + 1}/{len(recipes)})")
             status_placeholder.info(f"⏳ Processing **{name}**...")
 
-            # Trend scrape + RAG memory
+            # Trend scrape + RAG memory with rich content
             trend_pins, trend_source = collect_trending_pins(recipe.get("url", recipe.get("name", "")), max_pins=10)
             store_trending_pins(trend_pins)
-            rag_context = query_similar_trends(
-                f"{recipe.get('name', '')} {recipe.get('benefit', '')} {recipe.get('time', '')}",
-                top_k=5,
-            )
+            
+            # Build rich query from blog content for better trend matching
+            blog_sample = recipe.get("blog_content_sample", "")
+            ingredient_names = recipe.get("ingredient_names", "")
+            meta_keywords = recipe.get("meta_keywords", "")
+            
+            # Combine all signals for trend query
+            query_parts = [
+                recipe.get("name", ""),
+                recipe.get("benefit", ""),
+                recipe.get("time", ""),
+                ingredient_names,
+                blog_sample[:200] if blog_sample else "",  # Key blog phrases
+                meta_keywords,
+            ]
+            trend_query = " ".join([p for p in query_parts if p])
+            
+            rag_context = query_similar_trends(trend_query, top_k=5)
 
             # Hooks + descriptions (JSON packages)
             try:

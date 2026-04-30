@@ -133,40 +133,54 @@ def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None
     
     angles_list = "\n".join([f"  {i+1}. {angle}" for i, angle in enumerate(dynamic_angles)])
     
-    prompt = f"""Target recipe:
-- Name: {recipe.get("name","")}
-- Time: {recipe.get("time","")}
-- Ingredient count: {recipe.get("ingredients","")}
-- Benefit: {recipe.get("benefit","")}
-- URL: {recipe.get("url","")}
+    # Extract blog content for voice/style learning
+    blog_sample = recipe.get("blog_content_sample", "")
+    meta_keywords = recipe.get("meta_keywords", "")
+    ingredient_names = recipe.get("ingredient_names", "")
+    
+    # Extract Pinterest trend language patterns
+    trend_titles = [c.get("title", "") for c in trend_context[:5]]
+    trend_descs = [c.get("description", "") for c in trend_context[:5]]
+    trend_language = " ".join(trend_titles + trend_descs)
+    
+    prompt = f"""You are a Pinterest marketing expert. Create hooks by COMBINING the food blog's voice with winning Pinterest language.
 
-Similar trending Pinterest pins:
-{context_block}
+=== SOURCE 1: FOOD BLOG CONTENT ===
+Recipe name: {recipe.get("name","")}
+Blog description: {blog_sample[:400] if blog_sample else "Not extracted"}
+Key ingredients: {ingredient_names if ingredient_names else "Not extracted"}
+Meta keywords: {meta_keywords if meta_keywords else "None"}
+Time: {recipe.get("time","")} | Benefit: {recipe.get("benefit","")}
 
+=== SOURCE 2: TOP PINTEREST TRENDS FOR THIS RECIPE TYPE ===
+Trending pin titles:
+{trend_titles if trend_titles else "- (no trend data)"}
+
+Trending pin descriptions:
+{trend_descs if trend_descs else "- (no trend data)"}
+
+=== YOUR TASK ===
 Create 5 hooks for these angles:
 {angles_list}
 
-CRITICAL RULE: The hook content MUST directly express what the angle promises:
+INSTRUCTIONS:
+1. ANALYZE the blog's writing style from "Blog description" - notice their tone, vocabulary, what they emphasize
+2. EXTRACT winning language patterns from "Top Pinterest Trends" - what words/phrases perform well for similar recipes?
+3. BLEND both sources: Use the blog's voice + Pinterest-proven language structures
 
-ANGLE → HOOK CONTENT MAPPING:
-- "Lightning-Fast" = speed/urgency → "20 minutes start to finish", "Dinner before delivery arrives"
-- "Health-Boost" = nutrition/guilt-free → "Guilt-free comfort in every bite", "Nutrition that actually satisfies"  
-- "Protein-Packed" = muscle/fuel → "40g protein per serving", "Muscles love this bowl"
-- "Texture-Perfect" = mouthfeel/crunch → "Crispy outside, juicy inside", "The crunch you crave"
-- "Minimal-Cleanup" = ease/cleanup → "One pan, zero regrets", "The dishwasher stays closed"
-- "Budget-Smart" = money/value → "Feeds 4 for under $10", "Pantry staples, restaurant taste"
-- "Family-Approved" = picky eaters/kids → "Picky eaters ask for seconds", "Kid-tested, parent-loved"
-- "Big-Flavor" = taste intensity → "Garlicky, buttery, perfect", "Bold flavors, simple steps"
-- "Effortless" = ease/laziness → "Set it and forget it", "Lazy night perfection"
+EXAMPLES OF GOOD BLENDING:
+- Blog says "crispy golden chicken" + Pinterest trend "better than takeout" → "Crispy chicken that beats delivery"
+- Blog emphasizes "30 minutes" + Pinterest trend "weeknight hero" → "Your new 30-minute weeknight hero"
+- Blog mentions "kids love it" + Pinterest trend "picky eater approved" → "Finally, picky eaters clean their plates"
 
-ABSOLUTELY FORBIDDEN:
-- Putting "Set it and forget it" under Health-Boost (wrong angle!)
-- Using "Crispy outside, juicy inside" under Time-Saver (wrong angle!)
-- Generic hooks that don't express the angle's specific promise
+ANGLE → CONTENT RULES:
+- "Lightning-Fast" = speed focus → use blog's time claims + Pinterest urgency words
+- "Health-Boost" = nutrition angle → blend blog's health claims with Pinterest wellness language  
+- "Protein-Packed" = fitness angle → blog's protein info + Pinterest gym/recovery terms
+- "Texture-Perfect" = sensory focus → blog's texture words + Pinterest mouthfeel hooks
+- "Family-Approved" = crowd-pleaser → blog's family notes + Pinterest kid/parent language
 
-Each hook must be ANGLE-NATIVE: if you read only the hook, you should know which angle it belongs to.
-
-Return ONLY valid JSON as an array of 5 objects:
+Return ONLY valid JSON:
 [{{"angle": "...", "hook": "...", "description": "...", "vibe_prompt": "..."}}, ...]
 """
     try:
@@ -177,44 +191,71 @@ Return ONLY valid JSON as an array of 5 objects:
     except Exception:
         pass
 
-    # Angle-specific hook templates - each hook MUST match its angle meaning
+    # Smart fallback: Use blog content + trend keywords when AI fails
     name = recipe.get("name", "Recipe")
-    time = recipe.get("time", "")
-    benefit = recipe.get("benefit", "")
+    blog_sample = recipe.get("blog_content_sample", "")
+    ingredient_names = recipe.get("ingredient_names", "")
     
-    # Map angles to appropriate hook content
-    def hook_for_angle(angle: str) -> dict:
+    # Extract keywords from blog content for smarter fallbacks
+    blog_lower = blog_sample.lower()
+    
+    # Check for specific blog claims we can use
+    has_crispy = "crispy" in blog_lower or "crunchy" in blog_lower
+    has_juicy = "juicy" in blog_lower or "tender" in blog_lower
+    has_quick = "quick" in blog_lower or "fast" in blog_lower or "easy" in blog_lower
+    has_family = "family" in blog_lower or "kid" in blog_lower or "children" in blog_lower
+    has_protein = "protein" in blog_lower or "chicken" in blog_lower or "beef" in name.lower()
+    
+    def smart_hook_for_angle(angle: str) -> dict:
         angle_lower = angle.lower()
         
-        if "lightning" in angle_lower or "fast" in angle_lower or "quick" in angle_lower:
+        # Build hooks using actual blog content when possible
+        if "lightning" in angle_lower or "fast" in angle_lower or "quick" in angle_lower or "time" in angle_lower:
+            if has_quick:
+                return {"hook": "Quick enough for tonight", "desc": f"Fast {name} when you need it now.", "vibe": "speedy weeknight cooking"}
             return {"hook": "Dinner ready before delivery arrives", "desc": f"Lightning-fast {name} for busy nights.", "vibe": "speedy energetic cooking"}
-        elif "health" in angle_lower or "healthy" in angle_lower or "nutrit" in angle_lower:
+            
+        elif "health" in angle_lower:
             return {"hook": "Guilt-free comfort in every bite", "desc": f"Healthy {name} that actually satisfies.", "vibe": "fresh vibrant healthy food"}
-        elif "protein" in angle_lower or "protein-packed" in angle_lower:
+            
+        elif "protein" in angle_lower:
+            if has_protein:
+                return {"hook": "Protein that tastes like indulgence", "desc": f"High-protein {name} you'll crave.", "vibe": "satisfying protein-rich meal"}
             return {"hook": "40g protein per serving", "desc": f"High-protein {name} for fuel.", "vibe": "athletic nutrition focused"}
-        elif "texture" in angle_lower or "crispy" in angle_lower or "crunch" in angle_lower:
+            
+        elif "texture" in angle_lower or "crispy" in angle_lower:
+            if has_crispy and has_juicy:
+                return {"hook": "Crispy meets juicy perfection", "desc": f"The texture combination you crave.", "vibe": "sensational texture contrast"}
+            elif has_crispy:
+                return {"hook": "The crunch you've been craving", "desc": f"Crispy {name} done right.", "vibe": "crunchy texture close-up"}
             return {"hook": "Crispy outside, juicy inside", "desc": f"Perfect texture every single time.", "vibe": "macro food texture detail"}
-        elif "cleanup" in angle_lower or "minimal" in angle_lower or "one-pan" in angle_lower:
-            return {"hook": "One pan, zero regrets", "desc": f"Minimal cleanup with maximum flavor.", "vibe": "clean simple kitchen scene"}
-        elif "budget" in angle_lower or "cheap" in angle_lower or "pantry" in angle_lower:
-            return {"hook": "Feeds 4 for under $10", "desc": f"Budget-friendly {name} that impresses.", "vibe": "simple home cooking elegance"}
+            
         elif "family" in angle_lower or "kid" in angle_lower or "crowd" in angle_lower:
+            if has_family:
+                return {"hook": "Finally, everyone agrees on dinner", "desc": f"The {name} that unites picky eaters.", "vibe": "happy family dinner table"}
             return {"hook": "Picky eaters ask for seconds", "desc": f"Family-favorite {name} everyone loves.", "vibe": "happy family dinner moment"}
-        elif "flavor" in angle_lower or "bold" in angle_lower or "spicy" in angle_lower:
-            return {"hook": "Garlicky, buttery, perfect", "desc": f"Bold flavors, simple steps.", "vibe": "rich aromatic food close-up"}
+            
+        elif "flavor" in angle_lower or "bold" in angle_lower:
+            return {"hook": "Flavor that stops the scroll", "desc": f"Bold taste in every bite.", "vibe": "rich flavorful food close-up"}
+            
         elif "effortless" in angle_lower or "lazy" in angle_lower or "easy" in angle_lower:
             return {"hook": "Set it and forget it", "desc": f"Hands-off {name} with maximum flavor.", "vibe": "relaxed effortless cooking"}
-        elif "time" in angle_lower or "saver" in angle_lower:
-            return {"hook": "20 minutes start to finish", "desc": f"Time-saving {name} for busy lives.", "vibe": "efficient modern kitchen"}
+            
         elif "weeknight" in angle_lower or "hero" in angle_lower:
             return {"hook": "Your new Tuesday night staple", "desc": f"Reliable {name} for weeknight rotation.", "vibe": "cozy weeknight dinner table"}
-        elif "ingredient" in angle_lower or "simple" in angle_lower:
-            return {"hook": "Just 5 ingredients, big payoff", "desc": f"Simple {name} with huge flavor.", "vibe": "minimal ingredient elegance"}
+            
+        elif "budget" in angle_lower or "pantry" in angle_lower:
+            return {"hook": "Pantry staples, restaurant results", "desc": f"Budget-friendly {name} that impresses.", "vibe": "simple home cooking elegance"}
+            
         else:
+            # Use first ingredient if available for personalization
+            if ingredient_names:
+                first_ing = ingredient_names.split(",")[0].strip()
+                return {"hook": f"{first_ing.title()} done perfectly", "desc": f"Best {name} with premium ingredients.", "vibe": "quality ingredient spotlight"}
             return {"hook": f"The {name} that changes everything", "desc": f"Best {name} you'll ever make.", "vibe": "appetizing food hero shot"}
     
     return [
-        {"angle": angle, **hook_for_angle(angle)}
+        {"angle": angle, **smart_hook_for_angle(angle)}
         for angle in dynamic_angles[:5]
     ]
 
