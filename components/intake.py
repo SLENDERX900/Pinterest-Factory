@@ -272,29 +272,43 @@ def render_intake():
 
                 with st.spinner("Scraping recipes from website..."):
 
-                    scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
+                    try:
 
-                    
-
-                    if scraped_recipes:
-
-                        st.success(f"Found {len(scraped_recipes)} recipes!")
-
-                        # Keep scraper open to show results
-
-                        st.session_state.show_scraper = True
+                        scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
 
                         
 
-                        # Store scraped recipes in session state
+                        if scraped_recipes:
 
-                        st.session_state.scraped_recipes = scraped_recipes
+                            st.success(f"Found {len(scraped_recipes)} recipes!")
 
-                        st.rerun()  # Rerun to display results outside the button block
+                            # Keep scraper open to show results
 
-                    else:
+                            st.session_state.show_scraper = True
 
-                        st.error("No recipes found. Please check the URL and try again.")
+                            
+
+                            # Store scraped recipes in session state
+
+                            st.session_state.scraped_recipes = scraped_recipes
+
+                            st.rerun()  # Rerun to display results outside the button block
+
+                        else:
+
+                            st.error("No recipes found. Please check the URL and try again.")
+
+                            st.info("Common causes: Site blocks scrapers, no sitemap found, or unsupported recipe format. Check the URL and try a different food blog.")
+
+                    except Exception as e:
+
+                        import traceback
+
+                        st.error(f"Scraping failed: {str(e)}")
+
+                        with st.expander("Debug details"):
+
+                            st.code(traceback.format_exc())
 
             else:
 

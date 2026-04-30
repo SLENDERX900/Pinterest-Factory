@@ -98,7 +98,9 @@ def scrape_recipes_from_website(base_url: str, max_recipes: int = 50) -> list[di
         return recipes
         
     except Exception as e:
+        import traceback
         print(f"Error scraping website {base_url}: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         return []
 
 def is_likely_recipe_url(url: str) -> bool:
@@ -132,15 +134,18 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
     Extract recipe data using recipe-scrapers library.
     Falls back to manual extraction if scraper fails.
     """
+    print(f"[Extractor] Fetching URL: {url}")
     try:
         # Fetch page content
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         html = response.text
+        print(f"[Extractor] Fetched {len(html)} bytes")
         
         # Try recipe-scrapers first (supports 600+ sites)
         try:
             scraper = scrape_html(html, url)
+            print(f"[Extractor] recipe-scrapers found: {scraper.title()}")
             
             # Extract times
             prep_time = ""
@@ -183,11 +188,19 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
             
         except Exception as e:
             # recipe-scrapers failed, fall back to manual extraction
-            print(f"recipe-scrapers failed for {url}, falling back: {e}")
-            return manual_extract_recipe(url, headers, html)
+            print(f"[Extractor] recipe-scrapers failed for {url}: {e}")
+            print(f"[Extractor] Falling back to manual extraction...")
+            result = manual_extract_recipe(url, headers, html)
+            if result:
+                print(f"[Extractor] Manual extraction found: {result.get('name', 'Unknown')}")
+            else:
+                print(f"[Extractor] Manual extraction also failed")
+            return result
             
     except Exception as e:
-        print(f"Error fetching {url}: {e}")
+        import traceback
+        print(f"[Extractor] Error fetching {url}: {e}")
+        print(f"[Extractor] Traceback: {traceback.format_exc()}")
         return None
 
 
@@ -1507,18 +1520,25 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     Sitemap scraping with active memory de-dup.
     Checks scraped_memory.db before processing each URL.
     """
+    print(f"[Scraper] Starting scrape for: {base_url}")
+    
     try:
         from utils.sitemap_memory import has_url, mark_url
-    except ImportError:
+        print("[Scraper] Successfully imported sitemap_memory")
+    except ImportError as e:
+        print(f"[Scraper] Import error for sitemap_memory: {e}")
         from sitemap_memory import has_url, mark_url
 
     base_url = base_url.rstrip("/")
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
     try:
+        print(f"[Scraper] Fetching sitemap from: {base_url}")
         tree = sitemap_tree_for_homepage(base_url)
         all_pages = list(tree.all_pages())
-    except Exception:
+        print(f"[Scraper] Found {len(all_pages)} pages in sitemap")
+    except Exception as e:
+        print(f"[Scraper] Sitemap fetch failed: {e}, falling back to direct scraping")
         return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
 
     recipe_urls = []
@@ -1526,15 +1546,26 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
         url = page.url
         if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
             recipe_urls.append(url)
+    
+    print(f"[Scraper] Filtered {len(recipe_urls)} recipe URLs from {len(all_pages)} total pages")
 
     recipes = []
     for url in recipe_urls:
         if len(recipes) >= max_recipes:
             break
         if has_url(url):
+            print(f"[Scraper] Skipping already-processed URL: {url}")
             continue
+        
+        print(f"[Scraper] Extracting: {url}")
         recipe = extract_with_recipe_scrapers(url, headers)
         mark_url(url)
+        
         if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
+            print(f"[Scraper] ✓ Found valid recipe: {recipe['name']}")
             recipes.append(recipe)
+        else:
+            print(f"[Scraper] ✗ Invalid or missing recipe data from: {url}")
+    
+    print(f"[Scraper] Completed with {len(recipes)} recipes extracted")
     return recipes
