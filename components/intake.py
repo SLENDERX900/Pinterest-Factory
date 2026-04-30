@@ -13,6 +13,19 @@ import streamlit as st
 from utils.web_scraper import scrape_recipes_from_website_with_memory, validate_url
 
 
+def clear_batch_data():
+    """Clear all batch data from session state."""
+    st.session_state.recipe_data = []
+    st.session_state.recipes = []
+    st.session_state.batch_locked = False
+    st.session_state.ai_generated = False
+    st.session_state.hooks = {}
+    st.session_state.descriptions = {}
+    st.session_state.scraped_recipes = []
+    st.session_state.show_scraper = True
+    st.success("✅ Batch cleared! All data has been reset.")
+
+
 
 BENEFITS = [
 
@@ -578,7 +591,8 @@ def force_scrape_website(website_url: str):
 
     with col_b:
 
-        st.button("🗑 Clear batch", width='stretch', on_click=clear_batch)
+        if st.button("🗑 Clear batch", width='stretch'):
+            clear_batch_data()
 
 
 
