@@ -117,13 +117,10 @@ def _extract_dynamic_angles(recipe: dict, trend_context: list[dict]) -> list[str
 
 def generate_hook_packages(recipe: dict, trend_context: list[dict] | None = None, model: str | None = None) -> list[dict[str, Any]]:
     """
-    STEP 3: Generate dynamic hook packages based on recipe + web scraping.
-    Angles are self-determined by AI based on content, not fixed templates.
+    STEP 3: Generate hook packages with COMPLETELY UNIQUE angles per recipe.
+    The AI invents both the angle names AND the hooks based purely on recipe content.
     """
     trend_context = trend_context or []
-    
-    # Determine dynamic angles for this recipe
-    dynamic_angles = _extract_dynamic_angles(recipe, trend_context)
     
     context_lines = [
         f"- {c.get('title','')} | {c.get('description','')}"[:280]
@@ -142,34 +139,43 @@ Target recipe:
 Similar trending Pinterest pins:
 {context_block}
 
-Based on the recipe content and trending pins, create 5 hooks using these dynamic angles:
-{dynamic_angles}
+INVENT 5 completely unique angle names for THIS specific recipe.
+The angles should capture what makes this dish special - be creative and specific.
+
+Examples of UNIQUE angle names (DO NOT copy these - create new ones):
+- For crispy chicken: "Shatter-Crunch", "Juice-Explosion", "Kid-Smuggler", "Leftover-Killer"
+- For a soup: "Bowl-Hug", "Sick-Day-Saver", "Freezer-Stocker", "Topping-Bar"
+- For pasta: "Sauce-Magnet", "Cheese-Pull", "Garlic-Bomb", "One-Pot-Wonder"
 
 Return ONLY valid JSON as an array of 5 objects.
 Each object must include:
-- angle (use the exact angle names provided above, or create better ones based on content)
-- hook (<= 8 words, humanized, specific, punchy)
+- angle (2-3 words that capture ONE specific benefit/angle of THIS recipe, hyphenated or catchy)
+- hook (<= 8 words, humanized, specific, punchy, includes the recipe name naturally)
 - description (<= 150 chars, SEO-friendly)
 - vibe_prompt (short visual direction for image generation)
 
-The angles should feel native to THIS specific recipe, not generic.
+The angles MUST be unique to this recipe - not generic templates like "Quick" or "Easy".
 """
     try:
         raw = _generate(prompt, model=model)
         data = json.loads(raw)
         if isinstance(data, list) and len(data) >= 5:
             return data[:5]
-    except Exception:
+    except Exception as e:
+        print(f"[Groq] Hook generation failed: {e}")
         pass
 
-    # Fallback with dynamic angles
+    # Fallback: generate truly unique angles based on recipe name
     name = recipe.get("name", "Recipe")
+    name_words = name.lower().split()[:2]  # First 2 words
+    base = name_words[0] if name_words else "Dish"
+    
     return [
-        {"angle": dynamic_angles[0], "hook": f"Fast {name} in minutes", "description": f"Quick {name} for busy nights.", "vibe_prompt": "bright, efficient weeknight dinner"},
-        {"angle": dynamic_angles[1], "hook": f"Low-effort {name} tonight", "description": f"Minimal effort {name} with big flavor.", "vibe_prompt": "cozy one-pan comfort mood"},
-        {"angle": dynamic_angles[2], "hook": f"Weeknight {name} hero", "description": f"Reliable {name} for your weeknight rotation.", "vibe_prompt": "family dinner table warmth"},
-        {"angle": dynamic_angles[3], "hook": f"Simple {name} ingredient win", "description": f"Easy pantry-friendly {name} anyone can make.", "vibe_prompt": "minimal ingredients styled cleanly"},
-        {"angle": dynamic_angles[4], "hook": f"Best method for {name}", "description": f"Foolproof method to make {name} perfectly.", "vibe_prompt": "close-up food texture detail"},
+        {"angle": f"{base.title()}-Magic", "hook": f"Fast {name} in minutes", "description": f"Quick {name} for busy nights.", "vibe_prompt": "bright, efficient weeknight dinner"},
+        {"angle": f"{base.title()}-Essentials", "hook": f"Low-effort {name} tonight", "description": f"Minimal effort {name} with big flavor.", "vibe_prompt": "cozy one-pan comfort mood"},
+        {"angle": f"{base.title()}-Winner", "hook": f"Weeknight {name} hero", "description": f"Reliable {name} for your weeknight rotation.", "vibe_prompt": "family dinner table warmth"},
+        {"angle": f"{base.title()}-Hack", "hook": f"Simple {name} ingredient win", "description": f"Easy pantry-friendly {name} anyone can make.", "vibe_prompt": "minimal ingredients styled cleanly"},
+        {"angle": f"{base.title()}-Method", "hook": f"Best method for {name}", "description": f"Foolproof method to make {name} perfectly.", "vibe_prompt": "close-up food texture detail"},
     ]
 
 
