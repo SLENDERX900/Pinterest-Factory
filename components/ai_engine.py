@@ -13,7 +13,7 @@ from utils.groq_client import (
     ANGLES,
     GROQ_MODEL,
 )
-from utils.pinterest_scraper import scrape_pinterest_trends_sync
+from utils.pinterest_trends import collect_trending_pins
 from utils.rag_memory import store_trending_pins, query_similar_trends
 
 
@@ -51,13 +51,13 @@ def render_ai_engine():
         generate_all = st.button(
             "🚀 Generate all hooks",
             type="primary",
-            width='stretch',
+            use_container_width=True,
             disabled=st.session_state.ai_generated,
         )
     with col_regen:
         regenerate = st.button(
             "🔄 Re-generate all",
-            width='stretch',
+            use_container_width=True,
         )
     with col_info:
         st.caption(
@@ -84,12 +84,7 @@ def render_ai_engine():
             status_placeholder.info(f"⏳ Processing **{name}**...")
 
             # Trend scrape + RAG memory
-            # Use recipe name and keywords to find relevant Pinterest trends
-            search_query = f"{recipe.get('name', '')} {recipe.get('benefit', '')}".strip()
-            print(f"🔍 Searching Pinterest trends for: {search_query}")
-            
-            trend_pins = scrape_pinterest_trends_sync(search_query, max_pins=10)
-            trend_source = "pinterest_scraper"
+            trend_pins, trend_source = collect_trending_pins(recipe.get("url", recipe.get("name", "")), max_pins=10)
             store_trending_pins(trend_pins)
             rag_context = query_similar_trends(
                 f"{recipe.get('name', '')} {recipe.get('benefit', '')} {recipe.get('time', '')}",

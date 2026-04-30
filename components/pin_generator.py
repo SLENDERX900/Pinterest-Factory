@@ -13,7 +13,7 @@ from io import BytesIO
 import zipfile
 from datetime import datetime
 import random
-from utils.image_generator import generate_hook_images
+from utils.hf_image_client import generate_tailored_image
 
 
 # ── Web Scraping Helper ───────────────────────────────────────────────────────
@@ -397,7 +397,7 @@ def render_pin_generator():
     st.divider()
     
     # Generate button
-    if st.button("🎨 Generate Pins", type="primary", width='stretch'):
+    if st.button("🎨 Generate Pins", type="primary", use_container_width=True):
         with st.spinner("Fetching images and generating pins..."):
             generated_images = []
             template_functions = [
@@ -444,40 +444,9 @@ def render_pin_generator():
                         template_idx += 1
                         print(f"DEBUG: Applying template: {template_func.__name__}")
                         
-                        # Try Hugging Face image generation first, then apply visual template fallback
-                        try:
-                            # Create hook data for image generation
-                            hook_data = {
-                                'hook': cleaned_hook,
-                                'vibe_prompt': f"Pinterest pin for {recipe_name}",
-                                'angle': angle
-                            }
-                            
-                            # Generate image with new API
-                            recipe_data = {
-                                'name': recipe_name,
-                                'image_url': recipe.get('image_url', '')
-                            }
-                            
-                            generated_images = generate_hook_images(recipe_data['image_url'], [hook_data])
-                            
-                            if generated_images and len(generated_images) > 0:
-                                # Convert base64 back to PIL Image
-                                import base64
-                                image_data = generated_images[0].get('image_base64', '')
-                                if image_data:
-                                    image_bytes = base64.b64decode(image_data)
-                                    ai_img = Image.open(BytesIO(image_bytes))
-                                else:
-                                    ai_img = None
-                            else:
-                                ai_img = None
-                                
-                            source_img = ai_img if ai_img else recipe_image.copy()
-                            
-                        except Exception as e:
-                            print(f"DEBUG: Image generation failed: {e}")
-                            source_img = recipe_image.copy()
+                        # Try HF-tailored image first, then apply visual template fallback
+                        ai_img = generate_tailored_image(recipe_name, cleaned_hook, fallback_image=None)
+                        source_img = ai_img if ai_img else recipe_image.copy()
                         img = template_func(source_img, cleaned_hook, font_base_path)
                         print(f"DEBUG: Generated pin for {recipe_name} - {angle}")
                         
@@ -505,7 +474,7 @@ def render_pin_generator():
         cols = st.columns(3)
         for i, pin in enumerate(pins):
             with cols[i % 3]:
-                st.image(pin['image'], caption=f"{pin['recipe']}\n{pin['angle']}", width='stretch')
+                st.image(pin['image'], caption=f"{pin['recipe']}\n{pin['angle']}", use_container_width=True)
         
         # Show count and download button
         st.divider()
@@ -516,7 +485,7 @@ def render_pin_generator():
         
         with col2:
             # Create zip file for download
-            if st.button("📥 Download All Pins (ZIP)", width='stretch'):
+            if st.button("📥 Download All Pins (ZIP)", use_container_width=True):
                 with st.spinner("Creating ZIP file..."):
                     zip_buffer = BytesIO()
                     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -542,5 +511,5 @@ def render_pin_generator():
                         data=zip_buffer.getvalue(),
                         file_name=f"pinterest_pins_{timestamp}.zip",
                         mime="application/zip",
-                        width='stretch'
+                        use_container_width=True
                     )
