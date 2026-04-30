@@ -188,15 +188,26 @@ Return ONLY valid JSON:
         raw = _generate(prompt, model=model)
         print(f"GROQ DEBUG: Raw response: {raw[:200]}...", flush=True)
         
-        data = json.loads(raw)
-        print(f"GROQ DEBUG: Parsed JSON type: {type(data)}", flush=True)
-        print(f"GROQ DEBUG: Parsed JSON length: {len(data) if isinstance(data, list) else 'not a list'}", flush=True)
+        # Extract JSON from response - Groq often adds explanatory text before JSON
+        json_start = raw.find('[')
+        json_end = raw.rfind(']') + 1
         
-        if isinstance(data, list) and len(data) >= 5:
-            print(f"GROQ DEBUG: Successfully parsed {len(data)} hooks from Groq", flush=True)
-            return data[:5]
+        if json_start != -1 and json_end > json_start:
+            json_str = raw[json_start:json_end]
+            print(f"GROQ DEBUG: Extracted JSON: {json_str[:100]}...", flush=True)
+            
+            data = json.loads(json_str)
+            print(f"GROQ DEBUG: Parsed JSON type: {type(data)}", flush=True)
+            print(f"GROQ DEBUG: Parsed JSON length: {len(data) if isinstance(data, list) else 'not a list'}", flush=True)
+            
+            if isinstance(data, list) and len(data) >= 5:
+                print(f"GROQ DEBUG: Successfully parsed {len(data)} hooks from Groq", flush=True)
+                return data[:5]
+            else:
+                print(f"GROQ DEBUG: Invalid JSON structure, using fallback", flush=True)
         else:
-            print(f"GROQ DEBUG: Invalid response format, using fallback", flush=True)
+            print(f"GROQ DEBUG: No JSON found in response, using fallback", flush=True)
+            
     except Exception as e:
         print(f"GROQ DEBUG: Error parsing Groq response: {e}", flush=True)
         print(f"GROQ DEBUG: Raw response that failed: {raw}", flush=True)
