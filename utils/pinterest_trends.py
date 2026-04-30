@@ -46,27 +46,45 @@ def _install_playwright_if_needed():
     
     import subprocess
     import os
+    import sys
     from pathlib import Path
     import threading
     
+    # DEBUG: Force output to show Playwright status
+    debug_msg = "PLAYWRIGHT DEBUG: Checking installation status"
+    print(debug_msg, flush=True)
+    print(debug_msg, file=sys.stderr, flush=True)
+    
     # If already ready, return immediately
     if _playwright_ready:
+        print("PLAYWRIGHT DEBUG: Already ready and installed", flush=True)
         return True
     
     # If currently installing, wait for completion
     if _playwright_installing:
+        print("PLAYWRIGHT DEBUG: Installation in progress, waiting...", flush=True)
         # Wait up to 10 seconds for installation to complete
-        for _ in range(20):
+        for i in range(20):
             time.sleep(0.5)
             if _playwright_ready:
+                print(f"PLAYWRIGHT DEBUG: Installation completed after {i*0.5}s", flush=True)
                 return True
+        print("PLAYWRIGHT DEBUG: Installation timed out", flush=True)
         return False
     
     # Check if browsers are already installed
     cache_dir = Path.home() / ".cache" / "ms-playwright"
-    if cache_dir.exists() and any(cache_dir.glob("chromium*")):
-        _playwright_ready = True
-        return True
+    print(f"PLAYWRIGHT DEBUG: Checking browser cache at: {cache_dir}", flush=True)
+    
+    if cache_dir.exists():
+        chromium_dirs = list(cache_dir.glob("chromium*"))
+        print(f"PLAYWRIGHT DEBUG: Found {len(chromium_dirs)} chromium directories", flush=True)
+        if chromium_dirs:
+            _playwright_ready = True
+            print("PLAYWRIGHT DEBUG: Browsers already installed", flush=True)
+            return True
+    else:
+        print("PLAYWRIGHT DEBUG: No cache directory found", flush=True)
     
     # Start installation in background
     def install_in_background():
@@ -74,24 +92,30 @@ def _install_playwright_if_needed():
         
         try:
             _playwright_installing = True
+            print("PLAYWRIGHT DEBUG: Starting background installation", flush=True)
             
             # First install the playwright package if not available
             try:
                 import playwright
+                print("PLAYWRIGHT DEBUG: Playwright package already available", flush=True)
             except ImportError:
-                print("Installing Playwright package...")
+                print("PLAYWRIGHT DEBUG: Installing Playwright package...", flush=True)
                 result = subprocess.run(
                     ["pip", "install", "playwright"],
                     capture_output=True,
                     text=True,
                     timeout=120
                 )
+                print(f"PLAYWRIGHT DEBUG: Package install result: {result.returncode}", flush=True)
+                if result.stderr:
+                    print(f"PLAYWRIGHT DEBUG: Package install stderr: {result.stderr}", flush=True)
                 if result.returncode != 0:
-                    print(f"Failed to install Playwright package: {result.stderr}")
+                    print(f"PLAYWRIGHT DEBUG: Failed to install Playwright package: {result.stderr}", flush=True)
                     return
+                print("PLAYWRIGHT DEBUG: Playwright package installed successfully", flush=True)
             
             # Then install the browsers
-            print("Installing Playwright browsers for Pinterest scraping...")
+            print("PLAYWRIGHT DEBUG: Installing Playwright browsers for Pinterest scraping...", flush=True)
             result = subprocess.run(
                 ["python", "-m", "playwright", "install", "chromium"],
                 capture_output=True,
@@ -99,21 +123,30 @@ def _install_playwright_if_needed():
                 timeout=180
             )
             
+            print(f"PLAYWRIGHT DEBUG: Browser install result: {result.returncode}", flush=True)
+            if result.stdout:
+                print(f"PLAYWRIGHT DEBUG: Browser install stdout: {result.stdout}", flush=True)
+            if result.stderr:
+                print(f"PLAYWRIGHT DEBUG: Browser install stderr: {result.stderr}", flush=True)
+            
             if result.returncode == 0:
-                print("Playwright Chromium installed successfully")
+                print("PLAYWRIGHT DEBUG: Playwright Chromium installed successfully", flush=True)
                 _playwright_ready = True
             else:
-                print(f"Playwright browsers install failed: {result.stderr}")
+                print(f"PLAYWRIGHT DEBUG: Playwright browsers install failed: {result.stderr}", flush=True)
         except Exception as e:
-            print(f"Playwright installation error: {e}")
+            print(f"PLAYWRIGHT DEBUG: Playwright installation error: {e}", flush=True)
         finally:
             _playwright_installing = False
+            print("PLAYWRIGHT DEBUG: Installation thread finished", flush=True)
     
     # Start background installation
+    print("PLAYWRIGHT DEBUG: Starting installation thread", flush=True)
     thread = threading.Thread(target=install_in_background, daemon=True)
     thread.start()
     
     # Don't wait for installation to complete
+    print("PLAYWRIGHT DEBUG: Installation started in background, returning False", flush=True)
     return False
 
 
@@ -122,35 +155,56 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
     Use Playwright to scrape Pinterest search results.
     Returns None if Playwright fails or is not available.
     """
+    import sys
+    
+    print(f"PLAYWRIGHT DEBUG: _scrape_with_playwright called for '{search_term}'", flush=True)
+    print(f"PLAYWRIGHT DEBUG: _playwright_ready = {_playwright_ready}", flush=True)
+    print(f"PLAYWRIGHT DEBUG: _playwright_installing = {_playwright_installing}", flush=True)
+    
     # Check if Playwright is ready
     if not _playwright_ready:
+        print("PLAYWRIGHT DEBUG: Not ready, triggering installation...", flush=True)
         # Trigger installation if needed, but don't wait
         _install_playwright_if_needed()
+        print("PLAYWRIGHT DEBUG: Installation triggered, returning None for now", flush=True)
         # Return None for now - will work on next request
         return None
     
+    print("PLAYWRIGHT DEBUG: Ready to scrape, importing playwright...", flush=True)
+    
     try:
         from playwright.sync_api import sync_playwright
+        print("PLAYWRIGHT DEBUG: Successfully imported sync_playwright", flush=True)
         
         pins = []
         search_url = f"https://www.pinterest.com/search/pins/?q={requests.utils.quote(search_term)}"
         
+        print("PLAYWRIGHT DEBUG: Launching Chromium browser...", flush=True)
+        
         with sync_playwright() as p:
             # Launch browser with stealth options
+            print("PLAYWRIGHT DEBUG: Creating browser instance...", flush=True)
             browser = p.chromium.launch(
                 headless=True,
                 args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
             )
+            print("PLAYWRIGHT DEBUG: Browser launched successfully", flush=True)
+            print("PLAYWRIGHT DEBUG: Creating browser context...", flush=True)
             context = browser.new_context(
                 user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 viewport={'width': 1920, 'height': 1080}
             )
+            print("PLAYWRIGHT DEBUG: Context created, creating page...", flush=True)
             page = context.new_page()
+            print("PLAYWRIGHT DEBUG: Page created, navigating to Pinterest...", flush=True)
             
             # Navigate to Pinterest search
+            print(f"PLAYWRIGHT DEBUG: Navigating to: {search_url}", flush=True)
             page.goto(search_url, wait_until='networkidle', timeout=30000)
+            print("PLAYWRIGHT DEBUG: Navigation completed", flush=True)
             
             # Wait for pins to load
+            print("PLAYWRIGHT DEBUG: Waiting for pins to load...", flush=True)
             page.wait_for_selector('[data-test-id="pin"] || .Pin || [data-testid="pin-wrapper"]', timeout=10000)
             
             # Scroll to load more pins
@@ -158,36 +212,40 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
                 page.evaluate('window.scrollBy(0, 800)')
                 time.sleep(random.uniform(0.5, 1.5))
             
-            # Extract pin data
+            print("PLAYWRIGHT DEBUG: Extracting pin data...", flush=True)
             pin_elements = page.query_selector_all('[data-test-id="pin"] || .Pin || [data-testid="pin-wrapper"]')
+            print(f"PLAYWRIGHT DEBUG: Found {len(pin_elements)} pin elements", flush=True)
             
-            for element in pin_elements[:max_pins]:
+            print(f"PLAYWRIGHT DEBUG: Processing {min(len(pin_elements), max_pins)} pins...", flush=True)
+            
+            for i, element in enumerate(pin_elements[:max_pins]):
                 try:
+                    print(f"PLAYWRIGHT DEBUG: Processing pin {i+1}/{min(len(pin_elements), max_pins)}", flush=True)
+                    
                     # Extract title
                     title_elem = element.query_selector('img')
                     title = title_elem.get_attribute('alt') if title_elem else search_term
+                    print(f"PLAYWRIGHT DEBUG: Extracted title: {title[:50]}...", flush=True)
                     
                     # Extract image URL
                     img_elem = element.query_selector('img')
                     image_url = img_elem.get_attribute('src') if img_elem else ''
-                    # Get high-res version
-                    if image_url and '236x' in image_url:
-                        image_url = image_url.replace('236x', '736x')
+                    print(f"PLAYWRIGHT DEBUG: Extracted image URL: {image_url[:50]}...", flush=True)
                     
-                    # Extract pin URL
-                    link_elem = element.query_selector('a')
-                    pin_url = link_elem.get_attribute('href') if link_elem else ''
-                    if pin_url and not pin_url.startswith('http'):
-                        pin_url = f"https://www.pinterest.com{pin_url}"
+                    # Extract description (from title or alt text)
+                    desc_elem = element.query_selector('[data-test-id="pin-title"]')
+                    description = desc_elem.text_content() if desc_elem else title
+                    print(f"PLAYWRIGHT DEBUG: Extracted description: {description[:50]}...", flush=True)
                     
                     pins.append({
-                        "title": title or f"{search_term} recipe idea",
-                        "description": f"Trending {search_term} pin from Pinterest",
-                        "image_url": image_url,
-                        "pin_url": pin_url,
-                        "source": "Pinterest (Playwright)"
+                        'title': title,
+                        'description': description,
+                        'image_url': image_url,
+                        'source': 'pinterest'
                     })
+                    print(f"PLAYWRIGHT DEBUG: Pin {i+1} added successfully", flush=True)
                 except Exception as e:
+                    print(f"PLAYWRIGHT DEBUG: Error processing pin {i+1}: {e}", flush=True)
                     logger.debug(f"Error extracting pin element: {e}")
                     continue
             
