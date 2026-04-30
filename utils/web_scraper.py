@@ -202,11 +202,13 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
             meta_kw_tag = soup.find('meta', attrs={'name': 'keywords'})
             if meta_kw_tag:
                 meta_keywords = meta_kw_tag.get('content', '')
+                print(f"SCRAPER DEBUG: Found meta keywords: {meta_keywords[:100]}...", flush=True)
             
             # Try to get meta description
             meta_desc_tag = soup.find('meta', attrs={'name': 'description'})
             if meta_desc_tag:
                 meta_desc = meta_desc_tag.get('content', '')
+                print(f"SCRAPER DEBUG: Found meta description: {meta_desc[:100]}...", flush=True)
             
             # Try to get og:title
             og_title_tag = soup.find('meta', property='og:title')
@@ -216,15 +218,14 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
             # Determine benefit based on recipe data
             benefit = determine_benefit_from_data(prep_time, cook_time, ingredient_count)
             
-            return {
+            recipe_data = {
                 'name': scraper.title(),
                 'url': url,
                 'prep_time': prep_time,
                 'cook_time': cook_time,
-                'total_time': total_time,
-                'time': total_time if total_time else (cook_time if cook_time else prep_time),
-                'ingredients': str(ingredient_count) if ingredient_count else "",
-                'ingredient_names': ingredient_names,
+                'total_time': f"{prep_time} + {cook_time}",
+                'ingredients': ingredient_names,
+                'ingredient_count': ingredient_count,
                 'benefit': benefit,
                 # Rich content for AI hook generation
                 'description': description,
@@ -234,6 +235,9 @@ def extract_with_recipe_scrapers(url: str, headers: dict) -> dict:
                 'og_title': og_title,
                 'blog_content_sample': f"{description[:300]} {method_snippet[:200]}".strip(),
             }
+            
+            print(f"SCRAPER DEBUG: SEO data - Keywords: {len(meta_keywords)} chars, Description: {len(meta_desc)} chars", flush=True)
+            return recipe_data
             
         except Exception as e:
             # recipe-scrapers failed, fall back to manual extraction

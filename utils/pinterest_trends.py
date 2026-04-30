@@ -42,132 +42,50 @@ _playwright_ready = False
 _playwright_install_output = []  # Store installation output
 
 def _install_playwright_if_needed():
-    """Lazy install Playwright package and browsers only when scraping is needed."""
+    """Force install Playwright synchronously to ensure it works."""
     global _playwright_installing, _playwright_ready
     
     import subprocess
-    import os
     import sys
     from pathlib import Path
-    import threading
     
-    # DEBUG: Force output to show Playwright status
-    debug_msg = "PLAYWRIGHT DEBUG: Checking installation status"
-    print(debug_msg, flush=True)
-    print(debug_msg, file=sys.stderr, flush=True)
+    print("PLAYWRIGHT DEBUG: Starting synchronous installation...", flush=True)
     
-    # If already ready, return immediately
-    if _playwright_ready:
-        print("PLAYWRIGHT DEBUG: Already ready and installed", flush=True)
-        return True
+    # Install playwright package
+    print("PLAYWRIGHT DEBUG: Installing playwright package...", flush=True)
+    result = subprocess.run(
+        ["pip", "install", "playwright"],
+        capture_output=True,
+        text=True,
+        timeout=120
+    )
+    print(f"PLAYWRIGHT DEBUG: Package install result: {result.returncode}", flush=True)
+    if result.stderr:
+        print(f"PLAYWRIGHT DEBUG: Package stderr: {result.stderr}", flush=True)
     
-    # If currently installing, wait for completion
-    if _playwright_installing:
-        print("PLAYWRIGHT DEBUG: Installation in progress, waiting...", flush=True)
-        # Wait up to 10 seconds for installation to complete
-        for i in range(20):
-            time.sleep(0.5)
-            if _playwright_ready:
-                print(f"PLAYWRIGHT DEBUG: Installation completed after {i*0.5}s", flush=True)
-                return True
-        print("PLAYWRIGHT DEBUG: Installation timed out", flush=True)
-        return False
+    # Install browsers synchronously 
+    print("PLAYWRIGHT DEBUG: Installing browsers synchronously...", flush=True)
+    result = subprocess.run(
+        ["python", "-m", "playwright", "install", "chromium"],
+        capture_output=True,
+        text=True,
+        timeout=300  # 5 minutes
+    )
+    print(f"PLAYWRIGHT DEBUG: Browser install result: {result.returncode}", flush=True)
+    if result.stdout:
+        print(f"PLAYWRIGHT DEBUG: Browser stdout: {result.stdout}", flush=True)
+    if result.stderr:
+        print(f"PLAYWRIGHT DEBUG: Browser stderr: {result.stderr}", flush=True)
     
-    # Check if browsers are already installed
+    # Check if installation succeeded
     cache_dir = Path.home() / ".cache" / "ms-playwright"
-    print(f"PLAYWRIGHT DEBUG: Checking browser cache at: {cache_dir}", flush=True)
-    
-    if cache_dir.exists():
-        chromium_dirs = list(cache_dir.glob("chromium*"))
-        print(f"PLAYWRIGHT DEBUG: Found {len(chromium_dirs)} chromium directories", flush=True)
-        if chromium_dirs:
-            _playwright_ready = True
-            print("PLAYWRIGHT DEBUG: Browsers already installed", flush=True)
-            return True
+    if cache_dir.exists() and list(cache_dir.glob("chromium*")):
+        _playwright_ready = True
+        print("PLAYWRIGHT DEBUG: Installation successful!", flush=True)
+        return True
     else:
-        print("PLAYWRIGHT DEBUG: No cache directory found", flush=True)
-    
-    # Start installation in background
-    def install_in_background():
-        global _playwright_installing, _playwright_ready
-        
-        try:
-            _playwright_installing = True
-            print("PLAYWRIGHT DEBUG: Starting background installation", flush=True)
-            
-            # First install the playwright package if not available
-            print("PLAYWRIGHT DEBUG: Checking Playwright package availability...", flush=True)
-            
-            # Always try to install playwright to ensure it's available
-            print("PLAYWRIGHT DEBUG: Installing Playwright package...", flush=True)
-            result = subprocess.run(
-                ["pip", "install", "playwright"],
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-            print(f"PLAYWRIGHT DEBUG: Package install result: {result.returncode}", flush=True)
-            if result.stdout:
-                print(f"PLAYWRIGHT DEBUG: Package install stdout: {result.stdout}", flush=True)
-            if result.stderr:
-                print(f"PLAYWRIGHT DEBUG: Package install stderr: {result.stderr}", flush=True)
-            if result.returncode != 0:
-                print(f"PLAYWRIGHT DEBUG: Failed to install Playwright package: {result.stderr}", flush=True)
-                return
-            print("PLAYWRIGHT DEBUG: Playwright package installed successfully", flush=True)
-            
-            # Verify installation
-            try:
-                import playwright
-                print("PLAYWRIGHT DEBUG: Playwright package import successful", flush=True)
-            except ImportError as e:
-                print(f"PLAYWRIGHT DEBUG: Import still failed after installation: {e}", flush=True)
-                return
-            
-            # Then install the browsers
-            print("PLAYWRIGHT DEBUG: Installing Playwright browsers for Pinterest scraping...", flush=True)
-            
-            # Stream installation output in real-time
-            process = subprocess.Popen(
-                ["python", "-m", "playwright", "install", "chromium"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
-            
-            # Read output line by line and print immediately
-            while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
-                    break
-                if output:
-                    print(f"PLAYWRIGHT INSTALL: {output.strip()}", flush=True)
-            
-            # Get final result
-            result_returncode = process.poll()
-            print(f"PLAYWRIGHT DEBUG: Browser install result: {result_returncode}", flush=True)
-            
-            if result_returncode == 0:
-                print("PLAYWRIGHT DEBUG: Playwright Chromium installed successfully", flush=True)
-                _playwright_ready = True
-            else:
-                print(f"PLAYWRIGHT DEBUG: Playwright browsers install failed with code {result_returncode}", flush=True)
-        except Exception as e:
-            print(f"PLAYWRIGHT DEBUG: Playwright installation error: {e}", flush=True)
-        finally:
-            _playwright_installing = False
-            print("PLAYWRIGHT DEBUG: Installation thread finished", flush=True)
-    
-    # Start background installation
-    print("PLAYWRIGHT DEBUG: Starting installation thread", flush=True)
-    thread = threading.Thread(target=install_in_background, daemon=True)
-    thread.start()
-    
-    # Don't wait for installation to complete
-    print("PLAYWRIGHT DEBUG: Installation started in background, returning False", flush=True)
-    return False
+        print("PLAYWRIGHT DEBUG: Installation failed!", flush=True)
+        return False
 
 
 def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[list[dict]]:
