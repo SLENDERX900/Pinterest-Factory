@@ -184,11 +184,22 @@ Return ONLY valid JSON:
 [{{"angle": "...", "hook": "...", "description": "...", "vibe_prompt": "..."}}, ...]
 """
     try:
+        print(f"GROQ DEBUG: Sending prompt to Groq...", flush=True)
         raw = _generate(prompt, model=model)
+        print(f"GROQ DEBUG: Raw response: {raw[:200]}...", flush=True)
+        
         data = json.loads(raw)
+        print(f"GROQ DEBUG: Parsed JSON type: {type(data)}", flush=True)
+        print(f"GROQ DEBUG: Parsed JSON length: {len(data) if isinstance(data, list) else 'not a list'}", flush=True)
+        
         if isinstance(data, list) and len(data) >= 5:
+            print(f"GROQ DEBUG: Successfully parsed {len(data)} hooks from Groq", flush=True)
             return data[:5]
-    except Exception:
+        else:
+            print(f"GROQ DEBUG: Invalid response format, using fallback", flush=True)
+    except Exception as e:
+        print(f"GROQ DEBUG: Error parsing Groq response: {e}", flush=True)
+        print(f"GROQ DEBUG: Raw response that failed: {raw}", flush=True)
         pass
 
     # Smart fallback: Use blog content + trend keywords when AI fails
