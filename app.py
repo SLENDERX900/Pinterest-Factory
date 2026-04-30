@@ -14,6 +14,14 @@ import importlib
 import sys
 import warnings
 
+# Configure Streamlit to prevent disk space issues
+# Disable problematic caching that causes FILE_ERROR_NO_SPACE
+if hasattr(st, 'runtime'):
+    try:
+        st.runtime.legacy_caching.caching.clear()
+    except:
+        pass
+
 # Suppress transformers path access warnings
 warnings.filterwarnings("ignore", message=".*Accessing `__path__` from.*")
 warnings.filterwarnings("ignore", message=".*Behavior may be different and this alias will be removed.*")
