@@ -37,7 +37,7 @@ def _extract_keywords(query: str) -> str:
 
 
 def _install_playwright_if_needed():
-    """Lazy install Playwright browsers only when scraping is needed."""
+    """Lazy install Playwright package and browsers only when scraping is needed."""
     import subprocess
     import os
     from pathlib import Path
@@ -48,6 +48,22 @@ def _install_playwright_if_needed():
         return True
     
     try:
+        # First install the playwright package if not available
+        try:
+            import playwright
+        except ImportError:
+            print("Installing Playwright package...")
+            result = subprocess.run(
+                ["pip", "install", "playwright"],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode != 0:
+                print(f"Failed to install Playwright package: {result.stderr}")
+                return False
+        
+        # Then install the browsers
         print("Installing Playwright browsers for Pinterest scraping...")
         result = subprocess.run(
             ["python", "-m", "playwright", "install", "chromium"],
@@ -60,7 +76,7 @@ def _install_playwright_if_needed():
             print("Playwright Chromium installed successfully")
             return True
         else:
-            print(f"Playwright install failed: {result.stderr}")
+            print(f"Playwright browsers install failed: {result.stderr}")
             return False
     except Exception as e:
         print(f"Playwright installation error: {e}")
