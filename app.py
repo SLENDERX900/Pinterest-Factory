@@ -3,15 +3,16 @@ app.py — Pinterest Factory Dashboard
 Main router. Initialises session state and renders all 4 tabs.
 """
 
+import os
+# Silence transformers warnings before any imports
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import streamlit as st
 from dotenv import load_dotenv
 import importlib
 import sys
 import warnings
-import os
-
-# Force install of playwright browsers if they don't exist
-os.system("playwright install chromium")
 
 # Suppress transformers path access warnings
 warnings.filterwarnings("ignore", message=".*Accessing `__path__` from.*")
