@@ -39,6 +39,7 @@ def _extract_keywords(query: str) -> str:
 # Global flag to track installation status
 _playwright_installing = False
 _playwright_ready = False
+_playwright_install_output = []  # Store installation output
 
 def _install_playwright_if_needed():
     """Lazy install Playwright package and browsers only when scraping is needed."""
@@ -116,24 +117,34 @@ def _install_playwright_if_needed():
             
             # Then install the browsers
             print("PLAYWRIGHT DEBUG: Installing Playwright browsers for Pinterest scraping...", flush=True)
-            result = subprocess.run(
+            
+            # Stream installation output in real-time
+            process = subprocess.Popen(
                 ["python", "-m", "playwright", "install", "chromium"],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=180
+                bufsize=1,
+                universal_newlines=True
             )
             
-            print(f"PLAYWRIGHT DEBUG: Browser install result: {result.returncode}", flush=True)
-            if result.stdout:
-                print(f"PLAYWRIGHT DEBUG: Browser install stdout: {result.stdout}", flush=True)
-            if result.stderr:
-                print(f"PLAYWRIGHT DEBUG: Browser install stderr: {result.stderr}", flush=True)
+            # Read output line by line and print immediately
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    print(f"PLAYWRIGHT INSTALL: {output.strip()}", flush=True)
             
-            if result.returncode == 0:
+            # Get final result
+            result_returncode = process.poll()
+            print(f"PLAYWRIGHT DEBUG: Browser install result: {result_returncode}", flush=True)
+            
+            if result_returncode == 0:
                 print("PLAYWRIGHT DEBUG: Playwright Chromium installed successfully", flush=True)
                 _playwright_ready = True
             else:
-                print(f"PLAYWRIGHT DEBUG: Playwright browsers install failed: {result.stderr}", flush=True)
+                print(f"PLAYWRIGHT DEBUG: Playwright browsers install failed with code {result_returncode}", flush=True)
         except Exception as e:
             print(f"PLAYWRIGHT DEBUG: Playwright installation error: {e}", flush=True)
         finally:
