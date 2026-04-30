@@ -1569,10 +1569,23 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     Sitemap scraping with active memory de-dup.
     Checks scraped_memory.db before processing each URL.
     """
-    print("=" * 60)
-    print(f"[SCRAPER DEBUG] Starting scrape for: {base_url}")
-    print(f"[SCRAPER DEBUG] Max recipes requested: {max_recipes}")
-    print("=" * 60)
+    import sys
+    import logging
+    
+    # Force output to appear in Streamlit Cloud
+    debug_msg = f"SCRAPER START: {base_url}"
+    print(debug_msg, flush=True)
+    print(debug_msg, file=sys.stderr, flush=True)
+    
+    # Also try logging
+    logging.basicConfig(level=logging.DEBUG, force=True)
+    logger = logging.getLogger(__name__)
+    logger.debug(f"SCRAPER LOG: Starting scrape for {base_url}")
+    
+    print("=" * 60, flush=True)
+    print(f"[SCRAPER DEBUG] Starting scrape for: {base_url}", flush=True)
+    print(f"[SCRAPER DEBUG] Max recipes requested: {max_recipes}", flush=True)
+    print("=" * 60, flush=True)
     
     # Validate URL
     if not validate_url(base_url):
@@ -1589,18 +1602,28 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
     }
     
     try:
-        print(f"[SCRAPER DEBUG] Attempting sitemap fetch...")
+        msg = f"SITEMAT FETCH: Attempting for {base_url}"
+        print(msg, flush=True)
+        print(msg, file=sys.stderr, flush=True)
+        
         tree = sitemap_tree_for_homepage(base_url)
         all_pages = list(tree.all_pages())
-        print(f"[SCRAPER DEBUG] Sitemap SUCCESS: Found {len(all_pages)} pages")
+        
+        msg = f"SITEMAT SUCCESS: Found {len(all_pages)} pages"
+        print(msg, flush=True)
+        print(msg, file=sys.stderr, flush=True)
     except Exception as e:
-        print(f"[SCRAPER ERROR] Sitemap fetch failed: {e}")
-        print(f"[SCRAPER DEBUG] Trying fallback: direct homepage scraping")
+        msg = f"SITEMAT ERROR: {e}"
+        print(msg, flush=True)
+        print(msg, file=sys.stderr, flush=True)
+        print(f"[SCRAPER DEBUG] Trying fallback: direct homepage scraping", flush=True)
         try:
             return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
         except Exception as fallback_error:
-            print(f"[SCRAPER ERROR] Fallback scraping also failed: {fallback_error}")
-            print(f"[SCRAPER DEBUG] Returning empty list - site may block scrapers")
+            msg = f"FALLBACK ERROR: {fallback_error}"
+            print(msg, flush=True)
+            print(msg, file=sys.stderr, flush=True)
+            print(f"[SCRAPER DEBUG] Returning empty list - site may block scrapers", flush=True)
             return []
 
     recipe_urls = []
@@ -1647,16 +1670,20 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
             print(f"[SCRAPER ERROR] Error processing URL {url}: {e}")
             continue
     
-    print("=" * 60)
-    print(f"[SCRAPER SUMMARY] Completed: {len(recipes)} recipes extracted from {len(recipe_urls)} URLs")
+    msg = f"SCRAPER DONE: {len(recipes)} recipes from {len(recipe_urls)} URLs"
+    print(msg, flush=True)
+    print(msg, file=sys.stderr, flush=True)
+    
+    print("=" * 60, flush=True)
+    print(f"[SCRAPER SUMMARY] Completed: {len(recipes)} recipes extracted from {len(recipe_urls)} URLs", flush=True)
     if recipes:
-        print(f"[SCRAPER SUMMARY] Recipes found:")
+        print(f"[SCRAPER SUMMARY] Recipes found:", flush=True)
         for r in recipes:
-            print(f"  - {r['name']}")
+            print(f"  - {r['name']}", flush=True)
     else:
-        print(f"[SCRAPER SUMMARY] NO RECIPES FOUND - Check:")
-        print(f"  1. Site blocks scraping (try different site)")
-        print(f"  2. No recipe pages detected (check URL patterns)")
-        print(f"  3. Recipe format not supported")
-    print("=" * 60)
+        print(f"[SCRAPER SUMMARY] NO RECIPES FOUND - Check:", flush=True)
+        print(f"  1. Site blocks scraping (try different site)", flush=True)
+        print(f"  2. No recipe pages detected (check URL patterns)", flush=True)
+        print(f"  3. Recipe format not supported", flush=True)
+    print("=" * 60, flush=True)
     return recipes
