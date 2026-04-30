@@ -189,6 +189,12 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
     Add subtle 'nobscooking.com' watermark at bottom of pin.
     Positioned at Y=1420 with semi-transparent background for readability.
     """
+    print(f"DEBUG: Adding watermark to image size: {image.size}, mode: {image.mode}")
+    
+    # Convert to RGBA if needed
+    if image.mode != 'RGBA':
+        image = image.convert('RGBA')
+    
     draw = ImageDraw.Draw(image)
     
     # Load font
@@ -197,12 +203,16 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
             font_file = os.path.join(font_base_path, 'Montserrat-Medium.ttf')
             if os.path.exists(font_file):
                 font = ImageFont.truetype(font_file, BRAND_FONT_SIZE)
+                print(f"DEBUG: Loaded custom font: {font_file}")
             else:
                 font = ImageFont.load_default()
+                print("DEBUG: Font file not found, using default")
         else:
             font = ImageFont.load_default()
-    except:
+            print("DEBUG: No font path provided, using default")
+    except Exception as e:
         font = ImageFont.load_default()
+        print(f"DEBUG: Font loading failed: {e}, using default")
     
     domain = "nobscooking.com"
     
@@ -211,9 +221,13 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     
+    print(f"DEBUG: Text '{domain}' size: {text_width}x{text_height} pixels")
+    
     # Position at bottom center as requested (Y=1420 on 1000x1500 image)
     x = (PIN_WIDTH - text_width) // 2  # Perfectly centered on X-axis
     y = 1420  # Near bottom edge as requested
+    
+    print(f"DEBUG: Positioning text at ({x}, {y})")
     
     # Add semi-transparent black rectangle behind text for readability
     padding = 10
@@ -224,22 +238,28 @@ def add_branding_watermark(image: Image.Image, font_base_path: str = None) -> Im
         y + text_height + padding
     ]
     
-    # Create semi-transparent overlay
-    overlay = Image.new('RGBA', (PIN_WIDTH, PIN_HEIGHT), (0, 0, 0, 0))
-    overlay_draw = ImageDraw.Draw(overlay)
-    overlay_draw.rectangle(bg_rect, fill=(0, 0, 0, 128))  # Semi-transparent black
+    print(f"DEBUG: Drawing background rectangle: {bg_rect}")
     
-    # Composite the overlay onto the main image
-    image = Image.alpha_composite(image.convert('RGBA'), overlay)
-    draw = ImageDraw.Draw(image)  # Re-create draw context after composite
+    # Draw semi-transparent background
+    draw.rectangle(bg_rect, fill=(0, 0, 0, 180))  # More opaque for better visibility
     
     # Draw white text with dark stroke for maximum visibility
+    print(f"DEBUG: Drawing text with stroke")
     draw_text_with_stroke(draw, domain, font, x, y, 
                          fill_color=(255, 255, 255),  # White text
                          stroke_color=(0, 0, 0),        # Black stroke
                          stroke_width=2)               # Subtle stroke
     
-    return image.convert('RGB')  # Convert back to RGB for consistency
+    print(f"DEBUG: Watermark added successfully")
+    
+    # Convert back to RGB for consistency
+    if image.mode == 'RGBA':
+        # Create white background
+        background = Image.new('RGB', image.size, (255, 255, 255))
+        background.paste(image, mask=image.split()[-1])  # Use alpha channel as mask
+        image = background
+    
+    return image
 
 
 # ── Template Functions ────────────────────────────────────────────────────────
