@@ -244,14 +244,51 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
                 time.sleep(random.uniform(0.5, 1.5))
             
             print("PLAYWRIGHT DEBUG: Extracting pin data...", flush=True)
-            pin_elements = page.query_selector_all('[data-test-id="pin"] || .Pin || [data-testid="pin-wrapper"]')
-            print(f"PLAYWRIGHT DEBUG: Found {len(pin_elements)} pin elements", flush=True)
+            # Try multiple selectors separately since Playwright doesn't support || syntax
+            pin_elements = []
             
-            print(f"PLAYWRIGHT DEBUG: Processing {min(len(pin_elements), max_pins)} pins...", flush=True)
+            # Try first selector
+            try:
+                elements = page.query_selector_all('[data-test-id="pin"]')
+                pin_elements.extend(elements)
+                print(f"PLAYWRIGHT DEBUG: Found {len(elements)} pins with selector 1", flush=True)
+            except Exception as e:
+                print(f"PLAYWRIGHT DEBUG: Selector 1 failed: {e}", flush=True)
             
-            for i, element in enumerate(pin_elements[:max_pins]):
+            # Try second selector
+            try:
+                elements = page.query_selector_all('.Pin')
+                pin_elements.extend(elements)
+                print(f"PLAYWRIGHT DEBUG: Found {len(elements)} pins with selector 2", flush=True)
+            except Exception as e:
+                print(f"PLAYWRIGHT DEBUG: Selector 2 failed: {e}", flush=True)
+            
+            # Try third selector
+            try:
+                elements = page.query_selector_all('[data-testid="pin-wrapper"]')
+                pin_elements.extend(elements)
+                print(f"PLAYWRIGHT DEBUG: Found {len(elements)} pins with selector 3", flush=True)
+            except Exception as e:
+                print(f"PLAYWRIGHT DEBUG: Selector 3 failed: {e}", flush=True)
+            
+            # Try generic selectors as fallback
+            if not pin_elements:
                 try:
-                    print(f"PLAYWRIGHT DEBUG: Processing pin {i+1}/{min(len(pin_elements), max_pins)}", flush=True)
+                    elements = page.query_selector_all('div[src*="pin"]')
+                    pin_elements.extend(elements)
+                    print(f"PLAYWRIGHT DEBUG: Found {len(elements)} pins with generic selector", flush=True)
+                except Exception as e:
+                    print(f"PLAYWRIGHT DEBUG: Generic selector failed: {e}", flush=True)
+            
+            # Remove duplicates
+            unique_pins = list(set(pin_elements))
+            print(f"PLAYWRIGHT DEBUG: Found {len(unique_pins)} unique pin elements", flush=True)
+            
+            print(f"PLAYWRIGHT DEBUG: Processing {min(len(unique_pins), max_pins)} pins...", flush=True)
+            
+            for i, element in enumerate(unique_pins[:max_pins]):
+                try:
+                    print(f"PLAYWRIGHT DEBUG: Processing pin {i+1}/{min(len(unique_pins), max_pins)}", flush=True)
                     
                     # Extract title
                     title_elem = element.query_selector('img')
@@ -297,54 +334,99 @@ def _scrape_with_rss_fallback(search_term: str, max_pins: int = 10) -> Optional[
     CRITICAL FALLBACK: Parse competitor RSS feeds to gather recent pins.
     Used when Playwright fails or is blocked.
     """
+    import sys
+    
     try:
         pins = []
+        print(f"RSS DEBUG: Starting RSS fallback for '{search_term}'", flush=True)
         
         for rss_url in COMPETITOR_RSS_FEEDS:
             try:
-                logger.info(f"Trying RSS fallback: {rss_url}")
+                print(f"RSS DEBUG: Trying RSS feed: {rss_url}", flush=True)
                 feed = feedparser.parse(rss_url)
                 
-                for entry in feed.entries[:max_pins]:
+                print(f"RSS DEBUG: Feed status: {feed.get('status', 'unknown')}", flush=True)
+                print(f"RSS DEBUG: Feed entries count: {len(feed.get('entries', []))}", flush=True)
+                
+                if feed.bozo:
+                    print(f"RSS DEBUG: Feed has bozo errors: {feed.bozo_exception}", flush=True)
+                
+                for i, entry in enumerate(feed.entries[:max_pins]):
+                    print(f"RSS DEBUG: Processing entry {i+1}: {entry.get('title', 'No title')[:50]}...", flush=True)
+                    
                     # Extract data from RSS entry
                     title = entry.get('title', '')
                     summary = entry.get('summary', '')
+                    description = entry.get('description', '')
                     link = entry.get('link', '')
                     
-                    # Try to find image in content
-                    image_url = ''
-                    if 'media_content' in entry:
-                        image_url = entry.media_content[0].get('url', '')
-                    elif 'content' in entry:
-                        soup = BeautifulSoup(entry.content[0].value, 'html.parser')
-                        img = soup.find('img')
-                        if img:
-                            image_url = img.get('src', '')
+                    # Use description if summary is empty
+                    if not summary and description:
+                        summary = description
                     
-                    # Filter by search term relevance
-                    if search_term.lower() in (title + summary).lower():
-                        pins.append({
-                            "title": title,
-                            "description": summary[:200] if summary else f"Trending {search_term} recipe",
-                            "image_url": image_url,
-                            "pin_url": link,
-                            "source": f"Pinterest RSS ({rss_url.split('/')[3]})"
-                        })
+                    print(f"RSS DEBUG: Entry has title: {bool(title)}, summary: {bool(summary)}, link: {bool(link)}", flush=True)
+                    
+                    # Try to find image in various places
+                    image_url = ''
+                    
+                    # Try media_content
+                    if hasattr(entry, 'media_content') and entry.media_content:
+                        image_url = entry.media_content[0].get('url', '')
+                        print(f"RSS DEBUG: Found media_content image: {bool(image_url)}", flush=True)
+                    
+                    # Try content field
+                    if not image_url and hasattr(entry, 'content') and entry.content:
+                        try:
+                            soup = BeautifulSoup(entry.content[0].value, 'html.parser')
+                            img = soup.find('img')
+                            if img:
+                                image_url = img.get('src', '')
+                                print(f"RSS DEBUG: Found content image: {bool(image_url)}", flush=True)
+                        except Exception as e:
+                            print(f"RSS DEBUG: Content parsing failed: {e}", flush=True)
+                    
+                    # Try summary for images
+                    if not image_url and summary:
+                        try:
+                            soup = BeautifulSoup(summary, 'html.parser')
+                            img = soup.find('img')
+                            if img:
+                                image_url = img.get('src', '')
+                                print(f"RSS DEBUG: Found summary image: {bool(image_url)}", flush=True)
+                        except Exception as e:
+                            print(f"RSS DEBUG: Summary parsing failed: {e}", flush=True)
+                    
+                    # Create pin data (relaxed filtering - accept most entries)
+                    pin_data = {
+                        "title": title or f"Trending {search_term} recipe",
+                        "description": (summary or description or f"Popular {search_term} pin")[:200],
+                        "image_url": image_url or "https://via.placeholder.com/300x400",
+                        "pin_url": link or f"https://pinterest.com/pin/fallback/{hash(title + str(i))}",
+                        "source": f"Pinterest RSS ({rss_url.split('/')[3]})"
+                    }
+                    
+                    pins.append(pin_data)
+                    print(f"RSS DEBUG: Added pin: {pin_data['title'][:30]}...", flush=True)
+                    
+                    if len(pins) >= max_pins:
+                        break
                         
-                        if len(pins) >= max_pins:
-                            break
-                            
                 if len(pins) >= max_pins:
                     break
                     
             except Exception as e:
-                logger.warning(f"RSS feed {rss_url} failed: {e}")
+                print(f"RSS DEBUG: RSS feed {rss_url} failed: {e}", flush=True)
+                import traceback
+                print(f"RSS DEBUG: Full error: {traceback.format_exc()}", flush=True)
                 continue
         
+        print(f"RSS DEBUG: Returning {len(pins)} pins from RSS fallback", flush=True)
         return pins if pins else None
         
     except Exception as e:
-        logger.error(f"RSS fallback failed: {e}")
+        print(f"RSS DEBUG: RSS fallback completely failed: {e}", flush=True)
+        import traceback
+        print(f"RSS DEBUG: Full traceback: {traceback.format_exc()}", flush=True)
         return None
 
 
