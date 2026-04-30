@@ -14,3 +14,5 @@ feedparser>=6.0.11
 protobuf==3.20.3
 chromadb>=0.5.5
 sentence-transformers>=3.0.1
+# Required by transformers vision models (prevents ModuleNotFoundError warnings)
+torchvision>=0.20.0
