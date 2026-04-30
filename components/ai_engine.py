@@ -84,6 +84,9 @@ def render_ai_engine():
 
             # Trend scrape + RAG memory with rich content
             trend_pins, trend_source = collect_trending_pins(recipe.get("url", recipe.get("name", "")), max_pins=10)
+            print(f"AI DEBUG: Collected {len(trend_pins)} pins from {trend_source}", flush=True)
+            if trend_pins:
+                print(f"AI DEBUG: Sample pin: {trend_pins[0]}", flush=True)
             store_trending_pins(trend_pins)
             
             # Build rich query from blog content for better trend matching
@@ -103,11 +106,16 @@ def render_ai_engine():
             trend_query = " ".join([p for p in query_parts if p])
             
             rag_context = query_similar_trends(trend_query, top_k=5)
+            print(f"AI DEBUG: RAG context has {len(rag_context) if rag_context else 0} similar trends", flush=True)
+            if rag_context:
+                print(f"AI DEBUG: Sample RAG trend: {rag_context[0] if rag_context else 'None'}", flush=True)
 
             # Hooks + descriptions (JSON packages)
             try:
+                print(f"AI DEBUG: Sending to Groq with {len(trend_pins)} Pinterest pins + {len(rag_context) if rag_context else 0} RAG trends", flush=True)
                 packages = generate_hook_packages(recipe, trend_context=rag_context)
                 hooks = generate_hooks(recipe, trend_context=rag_context)
+                print(f"AI DEBUG: Groq generated {len(packages) if packages else 0} hook packages", flush=True)
                 st.session_state.hook_packages[name] = packages
                 # Clean hooks to remove conversational filler
                 cleaned_hooks = {}

@@ -379,6 +379,8 @@ def collect_trending_pins(query: str, max_pins: int = 10) -> tuple[list[dict], s
     pins = _scrape_with_playwright(search_term, max_pins)
     if pins:
         logger.info(f"Successfully scraped {len(pins)} pins with Playwright")
+        print(f"PINTEREST DEBUG: Sending {len(pins)} pins to Groq", flush=True)
+        print(f"PINTEREST DEBUG: Sample pin data: {pins[0] if pins else 'None'}", flush=True)
         return pins, f"Pinterest (Playwright): {search_term}"
     
     # Fallback to RSS
