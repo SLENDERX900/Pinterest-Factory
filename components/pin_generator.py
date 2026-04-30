@@ -457,6 +457,73 @@ def apply_template_split_screen(image: Image.Image, hook: str, font_base_path: s
     return img
 
 
+# ── Hugging Face Image-to-Image Helper ───────────────────────────────────────
+
+def hf_image_to_image(image: Image.Image, recipe_name: str, hook: str) -> Image.Image:
+    """
+    Generate tailored image using Hugging Face image-to-image model.
+    Bulletproof handling of timeouts and API failures.
+    """
+    try:
+        # Check HF token
+        hf_token = st.secrets.get("HF_TOKEN")
+        if not hf_token or hf_token == "your_hugging_face_token_here":
+            print("HF DEBUG: No valid HF_TOKEN found in secrets, using fallback image")
+            return image
+        
+        print(f"HF DEBUG: Starting image-to-image generation for: {recipe_name}")
+        print(f"HF DEBUG: Hook: {hook}")
+        
+        # Prepare image bytes
+        import io
+        img_buffer = io.BytesIO()
+        image.save(img_buffer, format='JPEG')
+        image_bytes = img_buffer.getvalue()
+        
+        # Create dynamic prompt
+        prompt = f"Professional food photography of {recipe_name}, tailored to highlight: {hook}. Make it appetizing and high quality."
+        print(f"HF DEBUG: Generated prompt: {prompt}")
+        
+        # HF API setup
+        api_url = "https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix"
+        headers = {
+            "Authorization": f"Bearer {hf_token}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "inputs": prompt,
+            "image": image_bytes
+        }
+        
+        print("HF DEBUG: Making API call with timeout=20...")
+        
+        # Make API call with strict timeout
+        response = requests.post(api_url, headers=headers, json=payload, timeout=20)
+        
+        if response.status_code == 200:
+            print("HF DEBUG: API call successful, processing response...")
+            result_image = Image.open(io.BytesIO(response.content))
+            print("HF DEBUG: Successfully generated tailored image")
+            return result_image
+        elif response.status_code == 503:
+            print("HF DEBUG: Model loading (503), using fallback image")
+            return image
+        elif response.status_code == 429:
+            print("HF DEBUG: Rate limited (429), using fallback image")
+            return image
+        else:
+            print(f"HF DEBUG: API error {response.status_code}: {response.text[:100]}, using fallback")
+            return image
+            
+    except requests.exceptions.Timeout:
+        print("HF DEBUG: Request timed out after 20 seconds, using fallback image")
+        return image
+    except Exception as e:
+        print(f"HF DEBUG: Unexpected error: {str(e)}, using fallback image")
+        return image
+
+
 # ── Main Render Function ─────────────────────────────────────────────────────
 
 def render_pin_generator():
@@ -467,6 +534,21 @@ def render_pin_generator():
     if not st.session_state.get('recipes') or not st.session_state.get('hooks'):
         st.warning("No recipe data or hooks found. Please complete Step 1 (Batch Intake) and Step 2 (AI Copy Engine) first.")
         return
+    
+    # Check HF token availability
+    hf_token = st.secrets.get("HF_TOKEN")
+    if not hf_token or hf_token == "your_hugging_face_token_here":
+        st.warning("⚠️ **Hugging Face token not found** in secrets.toml")
+        st.info("📝 **To enable AI-tailored images:**")
+        st.code("""
+# Add to .streamlit/secrets.toml:
+HF_TOKEN = "hf_your_actual_token_here"
+        """)
+        st.info("Or add HF_TOKEN to your Streamlit Cloud secrets")
+        hf_available = False
+    else:
+        hf_available = True
+        print("HF DEBUG: Valid HF_TOKEN found in secrets")
     
     # Font path (use local fonts directory)
     font_base_path = "fonts"
@@ -528,9 +610,15 @@ def render_pin_generator():
                         template_idx += 1
                         print(f"DEBUG: Applying template: {template_func.__name__}")
                         
-                        # Try HF-tailored image first, then apply visual template fallback
-                        ai_img = generate_tailored_image(recipe_name, cleaned_hook, fallback_image=None)
-                        source_img = ai_img if ai_img else recipe_image.copy()
+                        # Try HF-tailored image first, then apply visual template
+                        if hf_available:
+                            print(f"DEBUG: Attempting HF image generation for {recipe_name}")
+                            tailored_img = hf_image_to_image(recipe_image.copy(), recipe_name, cleaned_hook)
+                            source_img = tailored_img
+                        else:
+                            print(f"DEBUG: HF not available, using original image")
+                            source_img = recipe_image.copy()
+                        
                         img = template_func(source_img, cleaned_hook, font_base_path)
                         print(f"DEBUG: Generated pin for {recipe_name} - {angle}")
                         
