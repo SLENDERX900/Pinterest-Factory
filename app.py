@@ -4,7 +4,24 @@ Main router. Initialises session state and renders all 4 tabs.
 """
 
 import os
+import sys
+import shutil
+from pathlib import Path
+
+# Fix protobuf compatibility
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
+
+# Clear corrupted ChromaDB cache on startup (prevents crash loops)
+CHROMA_DIR = Path("data/chroma")
+if CHROMA_DIR.exists():
+    try:
+        # Check if it's too large or potentially corrupted
+        total_size = sum(f.stat().st_size for f in CHROMA_DIR.rglob('*') if f.is_file())
+        if total_size > 50 * 1024 * 1024:  # > 50MB
+            shutil.rmtree(CHROMA_DIR)
+            print("Cleared large ChromaDB cache on startup")
+    except Exception as e:
+        print(f"Could not check ChromaDB: {e}")
 
 import streamlit as st
 from dotenv import load_dotenv
