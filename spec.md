@@ -158,4 +158,3 @@ Suggested checkpoints you can mark off:
 - **Integrations/config**: env vars, secrets, external APIs (Groq/Notion/scraping)
 - **Exports**: CSV columns, file naming, pin dimensions/templates
 - **Roadmap**: when an item is started, shipped, or de-scoped
-
