@@ -179,16 +179,42 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
     
     print(f"PLAYWRIGHT DEBUG: _scrape_with_playwright called for '{search_term}'", flush=True)
     print(f"PLAYWRIGHT DEBUG: _playwright_ready = {_playwright_ready}", flush=True)
-    print(f"PLAYWRIGHT DEBUG: _playwright_installing = {_playwright_installing}", flush=True)
+    print(f"PLAYwright_installing = {_playwright_installing}", flush=True)
+    
+    # Check if browsers are actually installed
+    from pathlib import Path
+    cache_dir = Path.home() / ".cache" / "ms-playwright"
+    print(f"PLAYWRIGHT DEBUG: Browser cache exists: {cache_dir.exists()}", flush=True)
+    if cache_dir.exists():
+        chromium_dirs = list(cache_dir.glob("chromium*"))
+        print(f"PLAYWRIGHT DEBUG: Found {len(chromium_dirs)} chromium directories", flush=True)
+        for d in chromium_dirs:
+            print(f"PLAYWRIGHT DEBUG: Chromium dir: {d}", flush=True)
+    
+    # Try to import playwright to see if it's actually available
+    try:
+        import playwright
+        print("PLAYWRIGHT DEBUG: Playwright import successful", flush=True)
+    except ImportError as e:
+        print(f"PLAYWRIGHT DEBUG: Playwright import failed: {e}", flush=True)
     
     # Check if Playwright is ready
     if not _playwright_ready:
         print("PLAYWRIGHT DEBUG: Not ready, triggering installation...", flush=True)
-        # Trigger installation if needed, but don't wait
+        # Force re-check installation status
         _install_playwright_if_needed()
-        print("PLAYWRIGHT DEBUG: Installation triggered, returning None for now", flush=True)
-        # Return None for now - will work on next request
-        return None
+        
+        # Wait a bit for installation to complete
+        import time
+        for i in range(10):  # Wait up to 5 seconds
+            time.sleep(0.5)
+            if _playwright_ready:
+                print(f"PLAYWRIGHT DEBUG: Installation completed after {i*0.5}s!", flush=True)
+                break
+        
+        if not _playwright_ready:
+            print("PLAYWRIGHT DEBUG: Installation still not ready, returning None", flush=True)
+            return None
     
     print("PLAYWRIGHT DEBUG: Ready to scrape, importing playwright...", flush=True)
     
