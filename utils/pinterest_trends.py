@@ -27,12 +27,30 @@ COMPETITOR_RSS_FEEDS = [
 
 
 def _extract_keywords(query: str) -> str:
-    """Extract search keywords from URL or query string."""
+    """Extract search keywords from URL or query string, excluding website names."""
     if query.startswith('http'):
         # Extract keywords from URL path
         keywords = re.sub(r'[^\w\s-]', ' ', query).split()
-        keywords = [k for k in keywords if len(k) > 2 and not k.lower() in ['http', 'https', 'www', 'com', 'recipe', 'recipes']][:5]
-        return ' '.join(keywords)
+        
+        # Filter out common non-recipe terms and website names
+        exclude_terms = [
+            'http', 'https', 'www', 'com', 'recipe', 'recipes',
+            'nobscooking', 'tasty', 'buzzfeedtasty', 'food', 'blog',
+            'cooking', 'kitchen', 'chef', 'dinner', 'lunch', 'breakfast'
+        ]
+        
+        # Keep only recipe-relevant keywords
+        recipe_keywords = []
+        for k in keywords:
+            k_lower = k.lower()
+            if (len(k) > 2 and 
+                k_lower not in exclude_terms and 
+                not k_lower.endswith('.com') and
+                not k_lower.endswith('.net') and
+                not k_lower.endswith('.org')):
+                recipe_keywords.append(k)
+        
+        return ' '.join(recipe_keywords[:5])
     return query
 
 
@@ -164,12 +182,12 @@ def _scrape_with_playwright(search_term: str, max_pins: int = 10) -> Optional[li
             
             # Navigate to Pinterest search
             print(f"PLAYWRIGHT DEBUG: Navigating to: {search_url}", flush=True)
-            page.goto(search_url, wait_until='networkidle', timeout=30000)
+            page.goto(search_url, wait_until='networkidle', timeout=120000)  # 2 minutes
             print("PLAYWRIGHT DEBUG: Navigation completed", flush=True)
             
             # Wait for pins to load
             print("PLAYWRIGHT DEBUG: Waiting for pins to load...", flush=True)
-            page.wait_for_selector('[data-test-id="pin"] || .Pin || [data-testid="pin-wrapper"]', timeout=10000)
+            page.wait_for_selector('[data-test-id="pin"] || .Pin || [data-testid="pin-wrapper"]', timeout=60000)  # 1 minute
             
             # Scroll to load more pins
             for _ in range(3):
