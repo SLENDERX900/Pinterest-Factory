@@ -264,57 +264,164 @@ def render_intake():
 
         
 
-        # Scrape button
-
-        if st.button("🔍 Scrape Recipes", disabled=not website_url):
-
-            if validate_url(website_url):
-
-                with st.spinner("Scraping recipes from website..."):
-
-                    try:
-
-                        scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
-
-                        
-
-                        if scraped_recipes:
-
-                            st.success(f"Found {len(scraped_recipes)} recipes!")
-
-                            # Keep scraper open to show results
-
-                            st.session_state.show_scraper = True
-
-                            
-
-                            # Store scraped recipes in session state
-
-                            st.session_state.scraped_recipes = scraped_recipes
-
-                            st.rerun()  # Rerun to display results outside the button block
-
-                        else:
-
-                            st.error("No recipes found. Please check the URL and try again.")
-                            st.info("Common causes: Site blocks scrapers, no sitemap found, or unsupported recipe format. Check the URL and try a different food blog.")
-                            st.info("Debug info: Check the terminal logs for detailed error messages from the scraper.")
-
-                    except Exception as e:
-
-                        import traceback
-
-                        st.error(f"Scraping failed: {str(e)}")
-
-                        with st.expander("Debug details"):
-
-                            st.code(traceback.format_exc())
-
-            else:
-
-                st.error("Please enter a valid URL.")
-
+        # Smart scraping options
+        from utils.sitemap_memory import get_processed_count, get_all_processed_urls
         
+        # Show current memory status
+        memory_count = get_processed_count()
+        if memory_count > 0:
+            st.info(f"📝 **Memory Status:** {memory_count} URLs already processed. Smart scraping will only update new or changed recipes.")
+        
+        # Scrape buttons
+        col_smart, col_force, col_clear = st.columns([2, 1, 1])
+        
+        with col_smart:
+            if st.button("🧠 Smart Scrape", disabled=not website_url, width='stretch', help="Only scrape new/updated recipes"):
+                smart_scrape_website(website_url)
+        
+        with col_force:
+            if st.button("🔄 Force Scrape", disabled=not website_url, width='stretch', help="Re-scrape all recipes"):
+                force_scrape_website(website_url)
+        
+        with col_clear:
+            if st.button("🗑️ Clear Memory", help="Clear scraper memory to re-scrape all URLs", width='stretch'):
+                from utils.sitemap_memory import clear_all_urls
+                try:
+                    clear_all_urls()
+                    st.success("Scraper memory cleared! You can now re-scrape all URLs.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to clear memory: {str(e)}")
+
+
+def smart_scrape_website(website_url: str):
+    """Smart scraping that only processes new or changed recipes."""
+    if not validate_url(website_url):
+        st.error("Please enter a valid URL.")
+        return
+    
+    with st.spinner("Smart scraping recipes..."):
+        try:
+            # Get existing recipes from session state
+            existing_recipes = {r.get('url'): r for r in st.session_state.get('recipes', [])}
+            
+            # Get all URLs that would be scraped
+            from utils.web_scraper import get_all_recipe_urls
+            all_urls = get_all_recipe_urls(website_url, max_urls=30)
+            
+            # Find new URLs (not in memory) and existing URLs to re-check
+            from utils.sitemap_memory import has_url
+            new_urls = [url for url in all_urls if not has_url(url)]
+            existing_urls = [url for url in all_urls if has_url(url)]
+            
+            st.info(f"🔍 Found {len(new_urls)} new recipes + {len(existing_urls)} existing recipes")
+            
+            # Scrape new recipes
+            new_recipes = []
+            if new_urls:
+                st.info(f"📥 Processing {len(new_urls)} new recipes...")
+                from utils.web_scraper import scrape_recipes_from_urls
+                new_recipes = scrape_recipes_from_urls(new_urls)
+            
+            # Show existing recipes for review
+            if existing_urls:
+                st.info(f"📋 Found {len(existing_urls)} existing recipes. Review below for updates:")
+                
+                # Get existing recipes data
+                existing_recipes_data = []
+                for url in existing_urls:
+                    if url in existing_recipes:
+                        existing_recipes_data.append(existing_recipes[url])
+                
+                if existing_recipes_data:
+                    # Show existing recipes in a table
+                    import pandas as pd
+                    df = pd.DataFrame(existing_recipes_data)
+                    df = df[['name', 'time', 'benefit', 'url']]
+                    df.columns = ['Recipe', 'Time', 'Benefit', 'URL']
+                    st.dataframe(df, width='stretch', hide_index=True)
+                    
+                    # Allow selective re-scraping
+                    st.subheader("🔄 Select Recipes to Update")
+                    selected_urls = []
+                    for recipe in existing_recipes_data:
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"**{recipe['name']}** - {recipe['time']}")
+                        with col2:
+                            if st.button("Update", key=f"update_{recipe['url']}"):
+                                selected_urls.append(recipe['url'])
+                    
+                    if selected_urls:
+                        st.info(f"🔄 Updating {len(selected_urls)} selected recipes...")
+                        updated_recipes = scrape_recipes_from_urls(selected_urls)
+                        
+                        # Merge all recipes
+                        all_recipes = new_recipes + updated_recipes
+                        st.success(f"✅ Added {len(new_recipes)} new + updated {len(updated_recipes)} recipes!")
+                    else:
+                        all_recipes = new_recipes
+                        st.success(f"✅ Added {len(new_recipes)} new recipes!")
+                else:
+                    all_recipes = new_recipes
+                    st.success(f"✅ Added {len(new_recipes)} new recipes!")
+            else:
+                all_recipes = new_recipes
+                st.success(f"✅ Added {len(new_recipes)} new recipes!")
+            
+            if all_recipes:
+                # Add to session state
+                current_recipes = st.session_state.get('recipes', [])
+                # Remove duplicates by URL and add new ones
+                url_to_recipe = {r['url']: r for r in current_recipes + all_recipes}
+                st.session_state.recipes = list(url_to_recipe.values())
+                st.session_state.scraped_recipes = all_recipes
+                st.session_state.show_scraper = True
+                st.rerun()
+            else:
+                st.warning("No new recipes found.")
+                
+        except Exception as e:
+            st.error(f"Smart scraping failed: {str(e)}")
+            with st.expander("Debug details"):
+                st.code(traceback.format_exc())
+
+
+def force_scrape_website(website_url: str):
+    """Force scraping of all recipes (clears memory first)."""
+    if not validate_url(website_url):
+        st.error("Please enter a valid URL.")
+        return
+    
+    with st.spinner("Force scraping all recipes..."):
+        try:
+            # Clear memory for this site
+            from utils.sitemap_memory import get_all_processed_urls, clear_url
+            from utils.web_scraper import get_all_recipe_urls
+            
+            all_urls = get_all_recipe_urls(website_url, max_urls=30)
+            cleared_count = 0
+            for url in all_urls:
+                if clear_url(url):
+                    cleared_count += 1
+            
+            st.info(f"🗑️ Cleared {cleared_count} URLs from memory")
+            
+            # Now scrape all URLs
+            scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
+            
+            if scraped_recipes:
+                st.success(f"✅ Force scraped {len(scraped_recipes)} recipes!")
+                st.session_state.scraped_recipes = scraped_recipes
+                st.session_state.show_scraper = True
+                st.rerun()
+            else:
+                st.error("No recipes found. Please check the URL and try again.")
+                
+        except Exception as e:
+            st.error(f"Force scraping failed: {str(e)}")
+            with st.expander("Debug details"):
+                st.code(traceback.format_exc())
 
         # Display scraped recipes OUTSIDE the button block - persists across reruns
 

@@ -1697,3 +1697,85 @@ def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50
         print(f"  3. Recipe format not supported", flush=True)
     print("=" * 60, flush=True)
     return recipes
+
+
+def get_all_recipe_urls(base_url: str, max_urls: int = 30) -> list[str]:
+    """
+    Get all recipe URLs from a website without scraping the content.
+    
+    Args:
+        base_url: Base URL of the website
+        max_urls: Maximum number of URLs to return
+        
+    Returns:
+        List of recipe URLs
+    """
+    # Validate URL
+    if not validate_url(base_url):
+        print(f"[SCRAPER ERROR] Invalid URL format: {base_url}")
+        return []
+    
+    try:
+        from ultimate_sitemap_parser import sitemap_tree_for_homepage
+        tree = sitemap_tree_for_homepage(base_url)
+        all_pages = list(tree.all_pages())
+        
+        print(f"[SCRAPER DEBUG] Found {len(all_pages)} total pages")
+    except Exception as e:
+        print(f"[SCRAPER ERROR] Sitemap fetch failed: {e}")
+        return []
+    
+    recipe_urls = []
+    for page in all_pages:
+        if len(recipe_urls) >= max_urls:
+            break
+        url = page.url
+        if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
+            recipe_urls.append(url)
+    
+    print(f"[SCRAPER DEBUG] Found {len(recipe_urls)} recipe URLs")
+    return recipe_urls[:max_urls]
+
+
+def scrape_recipes_from_urls(urls: list[str]) -> list[dict]:
+    """
+    Scrape recipes from a list of specific URLs.
+    
+    Args:
+        urls: List of recipe URLs to scrape
+        
+    Returns:
+        List of recipe dictionaries
+    """
+    scraped_recipes = []
+    
+    for url in urls:
+        try:
+            print(f"[SCRAPER DEBUG] Processing URL: {url}")
+            
+            # Check if already processed
+            from utils.sitemap_memory import has_url, mark_url
+            if has_url(url):
+                print(f"[SCRAPER DEBUG] URL already processed: {url}")
+                continue
+            
+            # Extract recipe data
+            recipe_data = extract_with_recipe_scrapers(url)
+            if recipe_data and recipe_data.get('name'):
+                # Add URL to recipe data
+                recipe_data['url'] = url
+                
+                # Mark as processed
+                mark_url(url)
+                
+                scraped_recipes.append(recipe_data)
+                print(f"[SCRAPER DEBUG] Successfully scraped recipe: {recipe_data.get('name')}")
+            else:
+                print(f"[SCRAPER DEBUG] No recipe data found for: {url}")
+                
+        except Exception as e:
+            print(f"[SCRAPER ERROR] Failed to process {url}: {e}")
+            continue
+    
+    print(f"[SCRAPER DEBUG] Successfully scraped {len(scraped_recipes)} recipes from {len(urls)} URLs")
+    return scraped_recipes
