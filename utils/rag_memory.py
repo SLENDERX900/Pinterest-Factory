@@ -39,7 +39,7 @@ def _get_embedder():
 def _get_qdrant_client():
     global _qdrant_client
     if _qdrant_client is None:
-        if QDRANT_AVAILABLE:
+        if globals().get('QDRANT_AVAILABLE', False):
             try:
                 # Initialize Qdrant client (local mode for free usage)
                 DB_DIR.mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ def _get_qdrant_client():
             except Exception as e:
                 print(f"Error initializing Qdrant: {e}")
                 print("Falling back to in-memory storage")
-                QDRANT_AVAILABLE = False
+                globals()['QDRANT_AVAILABLE'] = False
                 return None
         else:
             return None
@@ -102,7 +102,7 @@ def store_trending_pins(pins: list[dict]) -> int:
 
     embeddings = embedder.encode(texts).tolist()
     
-    if QDRANT_AVAILABLE and qdrant_client:
+    if globals().get('QDRANT_AVAILABLE', False) and qdrant_client:
         # Store in Qdrant
         points = []
         for i, (pid, embedding, metadata) in enumerate(zip(ids, embeddings, metadatas)):
@@ -142,7 +142,7 @@ def query_similar_trends(query_text: str, top_k: int = 5) -> list[dict]:
     qdrant_client = _get_qdrant_client()
     query_embedding = embedder.encode([query_text]).tolist()[0]
     
-    if QDRANT_AVAILABLE and qdrant_client:
+    if globals().get('QDRANT_AVAILABLE', False) and qdrant_client:
         try:
             # Query Qdrant
             results = qdrant_client.search(
@@ -171,7 +171,7 @@ def query_similar_trends(query_text: str, top_k: int = 5) -> list[dict]:
         except Exception as e:
             print(f"Error querying Qdrant: {e}")
             print("Falling back to in-memory search")
-            QDRANT_AVAILABLE = False
+            globals()['QDRANT_AVAILABLE'] = False
             return _fallback_query(query_embedding, top_k)
     else:
         # Fallback: simple cosine similarity search
