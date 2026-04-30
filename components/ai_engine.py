@@ -9,9 +9,12 @@ from utils.groq_client import (
     check_connection,
     generate_hooks,
     generate_description,
+    generate_hook_packages,
     ANGLES,
     GROQ_MODEL,
 )
+from utils.pinterest_trends import collect_trending_pins
+from utils.rag_memory import store_trending_pins, query_similar_trends
 
 
 def render_ai_engine():
@@ -72,6 +75,7 @@ def render_ai_engine():
     if generate_all or (regenerate and not st.session_state.ai_generated):
         progress = st.progress(0, text="Starting generation...")
         status_placeholder = st.empty()
+        st.session_state.hook_packages = {}
 
         for idx, recipe in enumerate(recipes):
             name = recipe["name"]
@@ -79,9 +83,19 @@ def render_ai_engine():
             progress.progress(pct, text=f"Generating: {name} ({idx + 1}/{len(recipes)})")
             status_placeholder.info(f"⏳ Processing **{name}**...")
 
-            # Hooks
+            # Trend scrape + RAG memory
+            trend_pins, trend_source = collect_trending_pins(recipe.get("url", recipe.get("name", "")), max_pins=10)
+            store_trending_pins(trend_pins)
+            rag_context = query_similar_trends(
+                f"{recipe.get('name', '')} {recipe.get('benefit', '')} {recipe.get('time', '')}",
+                top_k=5,
+            )
+
+            # Hooks + descriptions (JSON packages)
             try:
-                hooks = generate_hooks(recipe)
+                packages = generate_hook_packages(recipe, trend_context=rag_context)
+                hooks = generate_hooks(recipe, trend_context=rag_context)
+                st.session_state.hook_packages[name] = packages
                 # Clean hooks to remove conversational filler
                 cleaned_hooks = {}
                 for angle, hook_text in hooks.items():
@@ -118,10 +132,11 @@ def render_ai_engine():
                 st.session_state.hooks[name] = cleaned_hooks
             except Exception as e:
                 st.session_state.hooks[name] = {a: f"[Generation failed: {e}]" for a in ANGLES}
+                st.session_state.hook_packages[name] = []
 
             # Description
             try:
-                desc = generate_description(recipe)
+                desc = generate_description(recipe, trend_context=rag_context)
                 st.session_state.descriptions[name] = desc
             except Exception as e:
                 st.session_state.descriptions[name] = f"[Description generation failed: {e}]"

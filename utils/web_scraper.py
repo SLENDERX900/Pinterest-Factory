@@ -1484,3 +1484,38 @@ def validate_url(url: str) -> bool:
         return all([result.scheme, result.netloc])
     except:
         return False
+
+
+def scrape_recipes_from_website_with_memory(base_url: str, max_recipes: int = 50) -> list[dict]:
+    """
+    Sitemap scraping with active memory de-dup.
+    Checks scraped_memory.db before processing each URL.
+    """
+    from utils.sitemap_memory import has_url, mark_url
+
+    base_url = base_url.rstrip("/")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+    try:
+        tree = sitemap_tree_for_homepage(base_url)
+        all_pages = list(tree.all_pages())
+    except Exception:
+        return scrape_recipes_from_website(base_url, max_recipes=max_recipes)
+
+    recipe_urls = []
+    for page in all_pages:
+        url = page.url
+        if any(pattern in url.lower() for pattern in ["/recipe", "/recipes/", "/cook/", "/food/", "/dish/", "/meal/"]) or is_likely_recipe_url(url):
+            recipe_urls.append(url)
+
+    recipes = []
+    for url in recipe_urls:
+        if len(recipes) >= max_recipes:
+            break
+        if has_url(url):
+            continue
+        recipe = extract_with_recipe_scrapers(url, headers)
+        mark_url(url)
+        if recipe and recipe.get("name") and recipe.get("name") != "Unknown Recipe":
+            recipes.append(recipe)
+    return recipes

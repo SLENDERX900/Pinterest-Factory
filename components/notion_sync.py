@@ -8,7 +8,8 @@ import os
 import time
 import requests
 import streamlit as st
-from utils.ollama_client import ANGLES
+from utils.groq_client import ANGLES
+from utils.scheduler import build_schedule_slots, schedule_pin, update_notion_item_scheduled
 
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
 NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "")
@@ -52,7 +53,7 @@ def _check_notion_auth() -> tuple[bool, str]:
         return False, str(e)
 
 
-def _create_page(recipe_name: str, angle: str, hook: str, description: str, recipe_url: str) -> tuple[bool, str]:
+def _create_page(recipe_name: str, angle: str, hook: str, description: str, recipe_url: str) -> tuple[bool, str, str]:
     """Create one Notion page (row) for a single pin."""
     payload = {
         "parent": {"database_id": NOTION_DATABASE_ID},
@@ -91,12 +92,12 @@ def _create_page(recipe_name: str, angle: str, hook: str, description: str, reci
         )
         if resp.status_code in (200, 201):
             page_id = resp.json().get("id", "")
-            return True, f"✅ Created: **{recipe_name}** · {angle} (ID: {page_id[:8]}...)"
+            return True, f"✅ Created: **{recipe_name}** · {angle} (ID: {page_id[:8]}...)", page_id
         else:
             error = resp.json().get("message", resp.text[:200])
-            return False, f"❌ Failed: **{recipe_name}** · {angle} — {error}"
+            return False, f"❌ Failed: **{recipe_name}** · {angle} — {error}", ""
     except Exception as e:
-        return False, f"❌ Error: **{recipe_name}** · {angle} — {e}"
+        return False, f"❌ Error: **{recipe_name}** · {angle} — {e}", ""
 
 
 def render_notion_sync():
@@ -155,6 +156,7 @@ def render_notion_sync():
     # ── Sync execution ────────────────────────────────────────────────────────
     if sync_clicked:
         st.session_state.notion_log = []
+        st.session_state.notion_pages = {}
         progress = st.progress(0, text="Syncing to Notion...")
         log_placeholder = st.empty()
 
@@ -168,8 +170,10 @@ def render_notion_sync():
             for angle, hook_text in recipe_hooks.items():
                 if not hook_text.strip():
                     continue
-                success, msg = _create_page(name, angle, hook_text, desc, url)
+                success, msg, page_id = _create_page(name, angle, hook_text, desc, url)
                 st.session_state.notion_log.append(msg)
+                if success and page_id:
+                    st.session_state.notion_pages[f"{name}::{angle}"] = page_id
                 completed += 1
                 pct = int((completed / total_pins) * 100)
                 progress.progress(pct, text=f"Syncing {name} · {angle}...")
@@ -185,6 +189,38 @@ def render_notion_sync():
             st.success(f"✅ All {successes} pins synced to Notion successfully.")
         else:
             st.warning(f"Sync complete — {successes} succeeded, {failures} failed.")
+
+    st.divider()
+    if st.button("📅 Schedule Pins + Mark Notion Scheduled", use_container_width=True):
+        packages = st.session_state.get("hook_packages", {})
+        notion_pages = st.session_state.get("notion_pages", {})
+        schedule_log = []
+        slots = build_schedule_slots(5)
+        idx = 0
+        for recipe in recipes:
+            name = recipe["name"]
+            for pkg in packages.get(name, [])[:5]:
+                angle = pkg.get("angle", "")
+                hook = pkg.get("hook", "")
+                desc = pkg.get("description", "")
+                image_url = recipe.get("url", "")
+                ok, sched_msg = schedule_pin(hook, desc, recipe.get("url", ""), image_url, slots[idx % len(slots)])
+                if ok:
+                    page_id = notion_pages.get(f"{name}::{angle}")
+                    if page_id:
+                        n_ok, n_msg = update_notion_item_scheduled(page_id, slots[idx % len(slots)])
+                        schedule_log.append(f"{name} · {angle}: Pinterest scheduled ({sched_msg}); Notion {n_msg}")
+                    else:
+                        schedule_log.append(f"{name} · {angle}: Pinterest scheduled ({sched_msg}); Notion page missing")
+                else:
+                    schedule_log.append(f"{name} · {angle}: schedule failed ({sched_msg})")
+                idx += 1
+        st.session_state.schedule_log = schedule_log
+
+    if st.session_state.get("schedule_log"):
+        st.subheader("Scheduling log")
+        for line in st.session_state.schedule_log:
+            st.write(line)
 
     # ── Show sync log ─────────────────────────────────────────────────────────
     if st.session_state.get("notion_log"):

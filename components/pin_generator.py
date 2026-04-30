@@ -13,6 +13,7 @@ from io import BytesIO
 import zipfile
 from datetime import datetime
 import random
+from utils.hf_image_client import generate_tailored_image
 
 
 # ── Web Scraping Helper ───────────────────────────────────────────────────────
@@ -443,8 +444,10 @@ def render_pin_generator():
                         template_idx += 1
                         print(f"DEBUG: Applying template: {template_func.__name__}")
                         
-                        # Apply template
-                        img = template_func(recipe_image.copy(), cleaned_hook, font_base_path)
+                        # Try HF-tailored image first, then apply visual template fallback
+                        ai_img = generate_tailored_image(recipe_name, cleaned_hook, fallback_image=None)
+                        source_img = ai_img if ai_img else recipe_image.copy()
+                        img = template_func(source_img, cleaned_hook, font_base_path)
                         print(f"DEBUG: Generated pin for {recipe_name} - {angle}")
                         
                         generated_images.append({

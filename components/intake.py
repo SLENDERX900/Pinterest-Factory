@@ -10,7 +10,7 @@ Dynamic form for entering 5–10 recipes. Saves to st.session_state on lock.
 
 import streamlit as st
 
-from utils.web_scraper import scrape_recipes_from_website, validate_url
+from utils.web_scraper import scrape_recipes_from_website_with_memory, validate_url
 
 
 
@@ -272,7 +272,7 @@ def render_intake():
 
                 with st.spinner("Scraping recipes from website..."):
 
-                    scraped_recipes = scrape_recipes_from_website(website_url, max_recipes=30)
+                    scraped_recipes = scrape_recipes_from_website_with_memory(website_url, max_recipes=30)
 
                     
 
