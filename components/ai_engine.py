@@ -50,13 +50,13 @@ def render_ai_engine():
         generate_all = st.button(
             "🚀 Generate all hooks",
             type="primary",
-            use_container_width=True,
+            width='stretch',
             disabled=st.session_state.ai_generated,
         )
     with col_regen:
         regenerate = st.button(
             "🔄 Re-generate all",
-            use_container_width=True,
+            width='stretch',
         )
     with col_info:
         st.caption(

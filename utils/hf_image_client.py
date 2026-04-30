@@ -26,10 +26,11 @@ IMAGE_TO_IMAGE_MODELS = [
     "lllyasviel/sd-controlnet-canny",  # ControlNet for structure preservation
 ]
 
-# Free text-to-image models
+# Free text-to-image models (more reliable options)
 TEXT_TO_IMAGE_MODELS = [
-    "stabilityai/stable-diffusion-xl-base-1.0",
-    "runwayml/stable-diffusion-v1-5",
+    "stabilityai/stable-diffusion-2-1",  # More stable and reliable
+    "runwayml/stable-diffusion-v1-5",   # Fallback option
+    "stabilityai/stable-diffusion-xl-base-1.0",  # Try last as it's heavier
 ]
 
 
@@ -44,14 +45,19 @@ def _hf_api_call(model: str, inputs: dict) -> Optional[bytes]:
     Returns:
         Image bytes or None if failed
     """
+    print(f"HF DEBUG: Checking API token...")
     if not HF_API_TOKEN:
+        print("HF DEBUG: HF_API_TOKEN not set, skipping Hugging Face generation")
         logger.warning("HF_API_TOKEN not set, skipping Hugging Face generation")
         return None
+    
+    print(f"HF DEBUG: API token found, length: {len(HF_API_TOKEN)}")
     
     url = f"{HF_API_BASE}/{model}"
     headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
     
     try:
+        print(f"HF DEBUG: Calling model {model}...")
         response = requests.post(
             url,
             headers=headers,
@@ -59,19 +65,29 @@ def _hf_api_call(model: str, inputs: dict) -> Optional[bytes]:
             timeout=120
         )
         
+        print(f"HF DEBUG: Response status: {response.status_code}")
+        
         if response.status_code == 200:
+            print("HF DEBUG: API call successful")
             return response.content
+        elif response.status_code == 401:
+            print("HF DEBUG: Unauthorized - API token may be invalid")
+            logger.warning("HF API token unauthorized - check your HF_API_TOKEN")
+            return None
         elif response.status_code == 503:
             # Model is loading
+            print(f"HF DEBUG: Model {model} is loading, retrying...")
             logger.info(f"Model {model} is loading, retrying...")
             import time
             time.sleep(20)
             return _hf_api_call(model, inputs)
         else:
+            print(f"HF DEBUG: API error {response.status_code}: {response.text[:200]}")
             logger.warning(f"HF API error {response.status_code}: {response.text[:200]}")
             return None
             
     except Exception as e:
+        print(f"HF DEBUG: API call failed: {e}")
         logger.warning(f"HF API call failed: {e}")
         return None
 

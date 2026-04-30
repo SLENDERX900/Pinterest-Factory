@@ -424,7 +424,7 @@ def render_intake():
 
     with col_b:
 
-        st.button("🗑 Clear batch", use_container_width=True, on_click=clear_batch)
+        st.button("🗑 Clear batch", width='stretch', on_click=clear_batch)
 
 
 
@@ -560,7 +560,7 @@ def render_intake():
 
             type="primary",
 
-            use_container_width=True,
+            width='stretch',
 
         )
 
@@ -620,5 +620,5 @@ def render_intake():
 
         preview_df.columns = ["Recipe", "Cook Time", "Ingredients", "Benefit", "URL"]
 
-        st.dataframe(preview_df, use_container_width=True, hide_index=True)
+        st.dataframe(preview_df, width='stretch', hide_index=True)
 

@@ -459,8 +459,8 @@ def render_pin_generator():
         st.warning("No recipe data or hooks found. Please complete Step 1 (Batch Intake) and Step 2 (AI Copy Engine) first.")
         return
     
-    # Font path (base directory, templates will use specific weights)
-    font_base_path = "Montserrat/static"
+    # Font path (use local fonts directory)
+    font_base_path = "fonts"
     
     # Generation settings
     col1, col2 = st.columns(2)
@@ -472,7 +472,7 @@ def render_pin_generator():
     st.divider()
     
     # Generate button
-    if st.button("🎨 Generate Pins", type="primary", use_container_width=True):
+    if st.button("🎨 Generate Pins", type="primary", width='stretch'):
         with st.spinner("Fetching images and generating pins..."):
             generated_images = []
             template_functions = [
@@ -586,5 +586,5 @@ def render_pin_generator():
                         data=zip_buffer.getvalue(),
                         file_name=f"pinterest_pins_{timestamp}.zip",
                         mime="application/zip",
-                        use_container_width=True
+                        width='stretch'
                     )
