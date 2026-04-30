@@ -89,15 +89,36 @@ class PinterestScraper:
                 try:
                     browser = await p.chromium.launch(headless=True)
                 except Exception as e:
-                    if "Executable doesn't exist" in str(e):
-                        print("🔧 Playwright browsers not installed, installing...")
+                    if "Executable doesn't exist" in str(e) or "libglib-2.0.so.0" in str(e):
+                        print("🔧 Playwright browsers or system dependencies missing, attempting installation...")
                         try:
+                            # Try to run our setup script
                             import subprocess
-                            subprocess.run(["playwright", "install", "chromium"], check=True, capture_output=True)
-                            print("✅ Playwright browsers installed, retrying...")
-                            browser = await p.chromium.launch(headless=True)
+                            import sys
+                            import os
+                            
+                            # Try to run the setup script
+                            setup_script = os.path.join(os.path.dirname(__file__), '..', 'setup_playwright.py')
+                            if os.path.exists(setup_script):
+                                print("🔧 Running Playwright setup script...")
+                                result = subprocess.run([sys.executable, setup_script], 
+                                                     capture_output=True, text=True, timeout=300)
+                                if result.returncode == 0:
+                                    print("✅ Playwright setup completed, retrying...")
+                                    browser = await p.chromium.launch(headless=True)
+                                else:
+                                    print(f"❌ Setup script failed: {result.stderr}")
+                                    return []
+                            else:
+                                # Fallback to direct playwright install
+                                print("🔧 Running direct Playwright install...")
+                                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], 
+                                             capture_output=True, text=True, timeout=300)
+                                browser = await p.chromium.launch(headless=True)
+                                
                         except Exception as install_error:
-                            print(f"❌ Failed to install Playwright browsers: {install_error}")
+                            print(f"❌ Failed to install Playwright: {install_error}")
+                            print("📡 Falling back to RSS scraping...")
                             return []
                     else:
                         raise e
